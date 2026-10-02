@@ -1,0 +1,54 @@
+{
+  "assets": 100000,
+  "users": 5,
+  "platform": "Windows-10-10.0.19045-SP0",
+  "load_generator_logical_cpus": 32,
+  "transport": "http://127.0.0.1:18082",
+  "includes": "validation, authentication, SQL, first 60 results, total count, generator facets, JSON serialization",
+  "excludes": "browser, original files, disk import, thumbnail generation",
+  "hardware_note": "Compose services share CPU 0-3; memory ceilings: PostgreSQL 10 GiB, app 4 GiB, worker 1 GiB; Docker host memory 15.57 GiB; HTTP client outside resource limits",
+  "queries": {
+    "structured": {
+      "query": "generator:novelai AND steps:>=28",
+      "samples": 100,
+      "median_ms": 178.99,
+      "p95_ms": 223.17,
+      "target_ms": 1000,
+      "passed": true
+    },
+    "personal": {
+      "query": "rating:>=4 AND NOT favorite:true",
+      "samples": 100,
+      "median_ms": 1220.41,
+      "p95_ms": 1484.2,
+      "target_ms": 1000,
+      "passed": false
+    },
+    "prompt_combination": {
+      "query": "prompt:\"white hair\" AND (model:model-2 OR model:model-4) AND cfg:4..7",
+      "samples": 100,
+      "median_ms": 1385.7,
+      "p95_ms": 1638.22,
+      "target_ms": 2000,
+      "passed": true
+    },
+    "prompt_token": {
+      "query": "prompt.tag:\"white hair\" AND NOT negative:\"monochrome\"",
+      "samples": 100,
+      "median_ms": 690.1,
+      "p95_ms": 891.27,
+      "target_ms": 2000,
+      "passed": true
+    },
+    "short_keyword": {
+      "query": "prompt:\"眼\"",
+      "samples": 100,
+      "median_ms": 279.27,
+      "p95_ms": 347.16,
+      "target_ms": 2000,
+      "passed": true
+    }
+  },
+  "superseded": true,
+  "validation_note": "Historical exploratory run. Personal ratings were uniform and that query returned zero matches; not valid as final acceptance. Use benchmark-compose-results.json with explicit nonzero match counts."
+}

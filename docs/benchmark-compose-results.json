@@ -1,0 +1,87 @@
+{
+  "assets": 100000,
+  "users": 5,
+  "platform": "Windows-10-10.0.19045-SP0",
+  "load_generator_logical_cpus": 32,
+  "transport": "http://127.0.0.1:18082",
+  "includes": "validation, authentication, SQL, first 60 results, total count, generator facets, JSON serialization",
+  "excludes": "browser, original files, disk import, thumbnail generation",
+  "hardware_note": "Compose services share CPU 0-3; memory ceilings: PostgreSQL 10 GiB, app 4 GiB, worker 1 GiB; Docker host memory 15.57 GiB; HTTP client outside resource limits",
+  "queries": {
+    "structured": {
+      "query": "generator:novelai AND steps:>=28",
+      "samples": 100,
+      "matched_assets_per_user": [
+        20000,
+        20000,
+        20000,
+        20000,
+        20000
+      ],
+      "median_ms": 191.41,
+      "p95_ms": 239.63,
+      "target_ms": 1000,
+      "passed": true
+    },
+    "personal": {
+      "query": "rating:>=4 AND NOT favorite:true",
+      "samples": 100,
+      "matched_assets_per_user": [
+        6000,
+        6000,
+        6000,
+        6000,
+        6000
+      ],
+      "median_ms": 139.97,
+      "p95_ms": 188.82,
+      "target_ms": 1000,
+      "passed": true
+    },
+    "prompt_combination": {
+      "query": "prompt:\"white hair\" AND (model:model-2 OR model:model-4) AND cfg:4..7",
+      "samples": 100,
+      "matched_assets_per_user": [
+        10000,
+        10000,
+        10000,
+        10000,
+        10000
+      ],
+      "median_ms": 1519.55,
+      "p95_ms": 1799.87,
+      "target_ms": 2000,
+      "passed": true
+    },
+    "prompt_token": {
+      "query": "prompt.tag:\"white hair\" AND NOT negative:\"monochrome\"",
+      "samples": 100,
+      "matched_assets_per_user": [
+        50000,
+        50000,
+        50000,
+        50000,
+        50000
+      ],
+      "median_ms": 709.35,
+      "p95_ms": 944.84,
+      "target_ms": 2000,
+      "passed": true
+    },
+    "short_keyword": {
+      "query": "prompt:\"眼\"",
+      "samples": 100,
+      "matched_assets_per_user": [
+        50000,
+        50000,
+        50000,
+        50000,
+        50000
+      ],
+      "median_ms": 278.71,
+      "p95_ms": 342.57,
+      "target_ms": 2000,
+      "passed": true
+    }
+  }
+}

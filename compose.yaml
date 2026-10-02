@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: genmedia
+      POSTGRES_USER: genmedia
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U genmedia -d genmedia"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  app:
+    build: .
+    environment: &environment
+      GMV_DATABASE_URL: postgresql+psycopg://genmedia:${POSTGRES_PASSWORD}@postgres:5432/genmedia
+      GMV_DATA_DIR: /data
+      GMV_IMPORT_ROOTS: '["/imports"]'
+      GMV_SECURE_COOKIE: ${GMV_SECURE_COOKIE:-false}
+      GMV_ADMIN_USERNAME: ${GMV_ADMIN_USERNAME:-admin}
+      GMV_ADMIN_PASSWORD: ${GMV_ADMIN_PASSWORD:?Set GMV_ADMIN_PASSWORD in .env}
+    command: ["sh", "-c", "alembic upgrade head && genmedia bootstrap && uvicorn genmedia.main:app --host 0.0.0.0 --port 8080"]
+    ports:
+      - "${GMV_BIND:-127.0.0.1}:${GMV_PORT:-8080}:8080"
+    volumes: &volumes
+      - media:/data
+      - ${GMV_IMPORT_ROOT:-./data/imports}:/imports:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v1/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  worker:
+    build: .
+    environment: *environment
+    command: ["genmedia", "worker"]
+    volumes: *volumes
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  database:
+  media:

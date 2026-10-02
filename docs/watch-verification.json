@@ -1,0 +1,10 @@
+{
+  "verified_at": "2026-10-02T02:13:11.938085+00:00",
+  "automatic_discovery": "passed",
+  "discovered_seconds": 10.3,
+  "automatic_classification": "passed",
+  "missing_and_returned_source": "passed",
+  "no_duplicate_asset": "passed",
+  "source_bytes_preserved": true,
+  "scope": "Watchdog plus periodic reconciliation together; test worker interval 10 seconds, production default 300 seconds"
+}

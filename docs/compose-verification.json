@@ -1,0 +1,87 @@
+{
+  "verified_at": "2026-10-02T02:08:12.801235+00:00",
+  "compose_build_and_health": "passed",
+  "backup_script_create_and_restore": "passed",
+  "tables": {
+    "alembic_version": {
+      "rows": 1,
+      "identical": true
+    },
+    "asset_models": {
+      "rows": 1,
+      "identical": true
+    },
+    "asset_tags": {
+      "rows": 6,
+      "identical": true
+    },
+    "assets": {
+      "rows": 1,
+      "identical": true
+    },
+    "audit_log": {
+      "rows": 0,
+      "identical": true
+    },
+    "collection_assets": {
+      "rows": 0,
+      "identical": true
+    },
+    "collections": {
+      "rows": 0,
+      "identical": true
+    },
+    "generations": {
+      "rows": 1,
+      "identical": true
+    },
+    "jobs": {
+      "rows": 2,
+      "identical": true
+    },
+    "libraries": {
+      "rows": 1,
+      "identical": true
+    },
+    "model_refs": {
+      "rows": 1,
+      "identical": true
+    },
+    "physical_files": {
+      "rows": 1,
+      "identical": true
+    },
+    "prompt_tokens": {
+      "rows": 6,
+      "identical": true
+    },
+    "raw_metadata": {
+      "rows": 1,
+      "identical": true
+    },
+    "rules": {
+      "rows": 0,
+      "identical": true
+    },
+    "sessions": {
+      "rows": 1,
+      "identical": true
+    },
+    "tags": {
+      "rows": 6,
+      "identical": true
+    },
+    "user_assets": {
+      "rows": 1,
+      "identical": true
+    },
+    "users": {
+      "rows": 1,
+      "identical": true
+    }
+  },
+  "authenticated_media_and_export_hashes_equal": true,
+  "metadata_and_personal_state_equal": true,
+  "logout_protects_originals": true,
+  "matched_files": 2
+}

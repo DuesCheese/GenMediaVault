@@ -1,0 +1,6 @@
+# Apply only to a disposable acceptance project, never to change production defaults.
+services:
+  worker:
+    environment:
+      GMV_SCAN_INTERVAL_SECONDS: 10
+      GMV_STABILITY_SECONDS: 1

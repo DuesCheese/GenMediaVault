@@ -1,0 +1,84 @@
+{
+  "verified_at": "2026-10-02T01:56:10.149462+00:00",
+  "postgresql_restore": "passed",
+  "tables": {
+    "alembic_version": {
+      "rows": 1,
+      "identical": true
+    },
+    "asset_models": {
+      "rows": 1,
+      "identical": true
+    },
+    "asset_tags": {
+      "rows": 6,
+      "identical": true
+    },
+    "assets": {
+      "rows": 1,
+      "identical": true
+    },
+    "audit_log": {
+      "rows": 0,
+      "identical": true
+    },
+    "collection_assets": {
+      "rows": 0,
+      "identical": true
+    },
+    "collections": {
+      "rows": 0,
+      "identical": true
+    },
+    "generations": {
+      "rows": 1,
+      "identical": true
+    },
+    "jobs": {
+      "rows": 3,
+      "identical": true
+    },
+    "libraries": {
+      "rows": 1,
+      "identical": true
+    },
+    "model_refs": {
+      "rows": 1,
+      "identical": true
+    },
+    "physical_files": {
+      "rows": 1,
+      "identical": true
+    },
+    "prompt_tokens": {
+      "rows": 6,
+      "identical": true
+    },
+    "raw_metadata": {
+      "rows": 2,
+      "identical": true
+    },
+    "rules": {
+      "rows": 0,
+      "identical": true
+    },
+    "sessions": {
+      "rows": 5,
+      "identical": true
+    },
+    "tags": {
+      "rows": 6,
+      "identical": true
+    },
+    "user_assets": {
+      "rows": 1,
+      "identical": true
+    },
+    "users": {
+      "rows": 1,
+      "identical": true
+    }
+  },
+  "restored_original_hashes_verified": 1,
+  "scope": "pg_dump/pg_restore on PostgreSQL 17 and media tar extraction to a separate directory; Docker volume orchestration not exercised"
+}

@@ -1,0 +1,20 @@
+# Use only with a dedicated project: docker compose -p genmedia-bench -f compose.yaml -f compose.benchmark.yaml
+# The three services share the same four logical CPUs, with 15 GiB total memory ceilings.
+services:
+  postgres:
+    cpuset: "0-3"
+    mem_limit: 10g
+    environment:
+      POSTGRES_DB: genmedia_bench
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U genmedia -d genmedia_bench"]
+  app:
+    cpuset: "0-3"
+    mem_limit: 4g
+    environment:
+      GMV_DATABASE_URL: postgresql+psycopg://genmedia:${POSTGRES_PASSWORD}@postgres:5432/genmedia_bench
+  worker:
+    cpuset: "0-3"
+    mem_limit: 1g
+    environment:
+      GMV_DATABASE_URL: postgresql+psycopg://genmedia:${POSTGRES_PASSWORD}@postgres:5432/genmedia_bench

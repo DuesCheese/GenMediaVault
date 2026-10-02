@@ -1,0 +1,54 @@
+{
+  "assets": 100000,
+  "users": 5,
+  "platform": "Windows-10-10.0.19045-SP0",
+  "logical_cpus": 32,
+  "transport": "FastAPI TestClient (HTTP/ASGI in-process)",
+  "includes": "validation, authentication, SQL, first 60 results, total count, generator facets, JSON serialization",
+  "excludes": "network, browser, original files, disk import, thumbnail generation",
+  "hardware_note": "Actual host; CPU and RAM were not capped to the planned 4-core/16-GB baseline.",
+  "queries": {
+    "structured": {
+      "query": "generator:novelai AND steps:>=28",
+      "samples": 50,
+      "median_ms": 143.34,
+      "p95_ms": 203.5,
+      "target_ms": 1000,
+      "passed": true
+    },
+    "personal": {
+      "query": "rating:>=4 AND NOT favorite:true",
+      "samples": 50,
+      "median_ms": 732.75,
+      "p95_ms": 797.55,
+      "target_ms": 1000,
+      "passed": true
+    },
+    "prompt_combination": {
+      "query": "prompt:\"white hair\" AND (model:model-2 OR model:model-4) AND cfg:4..7",
+      "samples": 50,
+      "median_ms": 565.16,
+      "p95_ms": 677.51,
+      "target_ms": 2000,
+      "passed": true
+    },
+    "prompt_token": {
+      "query": "prompt.tag:\"white hair\" AND NOT negative:\"monochrome\"",
+      "samples": 50,
+      "median_ms": 475.07,
+      "p95_ms": 548.31,
+      "target_ms": 2000,
+      "passed": true
+    },
+    "short_keyword": {
+      "query": "prompt:\"眼\"",
+      "samples": 50,
+      "median_ms": 161.04,
+      "p95_ms": 221.66,
+      "target_ms": 2000,
+      "passed": true
+    }
+  },
+  "superseded": true,
+  "validation_note": "Historical exploratory run. Personal ratings were uniform and that query returned zero matches; not valid as final acceptance. Use benchmark-compose-results.json with explicit nonzero match counts."
+}

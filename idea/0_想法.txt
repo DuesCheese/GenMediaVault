@@ -1,0 +1,6370 @@
+问：
+我需要一个本地和服务器都能运行的，网页界面的图片、视频整理和存储项目。我在用novalai或者本地的sd，以及未来的AI视频之后，需要有一个可以上传后自动读取其元信息，并且分类，还能通过复杂的搜索逻辑进行元信息内容搜索，以及一键复制元信息，自动对元信息进行分类的项目。除此以外我还没想到太多，你可以尝试在网上搜索类似的开源项目提取其优点整合进来。
+
+答：
+我查了一轮现有项目后，方向已经比较明确：你需要的并不是传统“相册”，而是一个面向 **AI 生成图片 / 视频的本地优先数字资产管理系统**。核心区别在于：**Prompt、模型、LoRA、Seed、Sampler、工作流等生成元信息必须是一等公民，而不是藏在 EXIF 面板里的附属信息。**
+
+下面先给你一版可以直接继续往 PRD / 技术设计推进的总体方案。
+
+# 1. 产品定义
+
+暂定项目代号：**GenMedia Vault**
+
+产品定位：
+
+> 一个 Local-first、Self-hosted、Web UI 的 AI 图片与 AI 视频资产管理系统，用于统一收集、解析、分类、搜索、整理、复用和追溯 AI 生成媒体及其生成参数。
+
+主要面向：
+
+- NovelAI 用户
+- Stable Diffusion / AUTOMATIC1111 用户
+- ComfyUI 用户
+- Forge / WebUI 衍生工具用户
+- Flux / SDXL 等模型用户
+- 未来 AI Video 用户
+- 本地大量保存 AI 图片、视频的人
+- 希望保留 Prompt / Seed / Model / Workflow 并进行复用的人
+
+系统原则：
+
+1. 本地可运行
+2. NAS / Linux 服务器可运行
+3. 浏览器操作
+4. 原始文件尽量不被修改
+5. 元数据自动提取
+6. 元数据统一结构化
+7. 支持非常复杂的查询
+8. 不强依赖云服务
+9. 支持几十万乃至百万级资产
+10. 对未来新的 AI 生成器保持扩展能力
+
+---
+
+# 2. 对现有项目的参考
+
+## 2.1 Immich
+
+Immich 是目前非常成熟的自托管照片/视频管理系统之一。
+
+值得吸收：
+
+- 优秀的 Web 图片流浏览体验
+- 图片 + 视频统一管理
+- 缩略图和预览图异步生成
+- Hash 去重
+- Album
+- Tag
+- Metadata Search
+- CLIP 语义搜索
+- Docker 部署
+- 多用户
+- 后台任务
+- 用户自定义存储结构
+- Folder View
+
+Immich 当前甚至已经发展出支持 AND / OR 组合条件的新 Search API。
+
+但它的核心设计仍然围绕普通照片，而不是 AI Generation Metadata。
+
+因此：
+
+**借它的媒体管理架构，不照搬它的数据模型。** :chatgpt-content-reference{index="0"}
+
+
+---
+
+# 2.2 Hydrus Network
+
+Hydrus 对这个项目非常有启发意义。
+
+它的核心思想不是：
+
+> 文件在哪个文件夹？
+
+而是：
+
+> 文件有什么标签？
+
+对于拥有数万乃至几十万媒体文件的人，它用 Tag 体系取代传统目录作为主要组织方式。
+
+值得吸收：
+
+- Tag First
+- 一个媒体可以属于无限多个分类
+- 不依赖物理文件夹分类
+- 强大的标签组合查询
+- 本地优先
+- 大媒体库设计
+- 图片、视频甚至其他媒体统一处理
+
+这是非常适合 AI 图片管理的思想。 :chatgpt-content-reference{index="1"}
+
+
+---
+
+# 2.3 digiKam
+
+digiKam 最值得借鉴的是：
+
+**“元数据是可搜索数据，而不仅仅是展示数据。”**
+
+它支持：
+
+- EXIF
+- IPTC
+- XMP
+- Rating
+- Label
+- Tag
+- 日期
+- Location
+- Album
+
+并允许按这些维度搜索。
+
+我们的项目应该进一步：
+
+把：
+
+EXIF Metadata
+
+升级为：
+
+AI Generation Metadata。 :chatgpt-content-reference{index="2"}
+
+
+---
+
+# 2.4 Diffusion Toolkit
+
+这是目前与你需求最接近的参考之一。
+
+它专门扫描 AI 图片中的生成参数，并写入本地数据库进行搜索。
+
+目前支持的元数据来源包括：
+
+- AUTOMATIC1111
+- InvokeAI
+- NovelAI
+- Stable Diffusion
+- ComfyUI
+
+并能搜索：
+
+- Prompt
+- Seed
+- Model
+- Model Hash
+- CFG
+- Generation Parameters
+
+还有：
+
+- Favorite
+- Rating
+- NSFW Tag
+- Album
+- 文件夹扫描
+
+这证明：
+
+> AI 图片元数据本身就值得建立专门数据库。
+
+我们的目标应该是做一个更加现代的 Web / Server / Video-capable 版本。 :chatgpt-content-reference{index="3"}
+
+
+---
+
+# 2.5 AUTOMATIC1111 Image Browser
+
+值得借鉴：
+
+- 浏览历史生成结果
+- 显示生成参数
+- Regex Search
+- EXIF 搜索
+- Favorite
+- Ranking
+- 自定义目录
+- Copy / Move
+- Send to txt2img / img2img
+- 快捷键
+
+尤其值得学习的交互：
+
+**从结果中快速重新利用生成参数。** :chatgpt-content-reference{index="4"}
+
+
+---
+
+# 2.6 NovelAI 官方 metadata 工具
+
+这里有一个非常重要的特殊点。
+
+NovelAI 官方已经提供 metadata extraction 工具，并且当前 NovelAI 图片可能不只是普通 PNG text metadata，还可能把数据放在 alpha channel 中的 stealth metadata。
+
+官方工具可以提取这些数据，并处理相关签名信息。
+
+所以 NovelAI 解析不能只：
+
+读取 PNG `tEXt`。
+
+应该设计专门的：
+
+`NovelAI Metadata Parser`
+
+并兼容 NovelAI 官方的 metadata extraction 逻辑。 :chatgpt-content-reference{index="5"}
+
+
+---
+
+# 2.7 Damask
+
+Damask 是另一个很值得参考的 self-hosted DAM。
+
+值得借鉴：
+
+- Single Binary
+- Local-first
+- Bulk Tag
+- Custom Metadata Field
+- Content Hash Deduplication
+- Asset Version
+- Collections
+- Visual Similarity Search
+- Activity Log
+
+其中两个特别值得我们采用：
+
+**Custom Metadata Fields**
+
+和
+
+**Asset Versioning**
+
+这样未来出现新的模型参数时，不需要修改整个数据库。 :chatgpt-content-reference{index="6"}
+
+
+---
+
+# 3. 最终产品核心概念
+
+系统不应该只有：
+
+```text
+Folder
+  └── Image
+```
+
+而应该是：
+
+```text
+Library
+ ├── Asset
+ │    ├── Original File
+ │    ├── Preview
+ │    ├── Thumbnail
+ │    ├── Raw Metadata
+ │    ├── Normalized Metadata
+ │    ├── AI Generation Metadata
+ │    ├── User Metadata
+ │    ├── Auto Tags
+ │    └── Embedding
+ │
+ ├── Collections
+ ├── Smart Collections
+ ├── Tags
+ ├── Models
+ ├── LoRAs
+ ├── Characters
+ ├── Styles
+ └── Workflows
+```
+
+也就是说：
+
+**图片只是主体之一。**
+
+真正需要长期管理的是：
+
+```text
+Asset
++
+Generation
++
+Metadata
++
+Relationship
+```
+
+---
+
+# 4. 文件导入方式
+
+系统至少支持 4 种导入方式。
+
+## A. Web 上传
+
+拖入：
+
+```text
+PNG
+JPG
+JPEG
+WEBP
+GIF
+AVIF
+
+MP4
+MOV
+WEBM
+MKV
+```
+
+自动进入解析流程。
+
+---
+
+## B. Watch Folder
+
+例如：
+
+```text
+D:/AI/NovelAI/
+D:/AI/ComfyUI/output/
+D:/AI/A1111/outputs/
+```
+
+或者服务器：
+
+```text
+/mnt/ai-output/
+/mnt/nas/generated/
+```
+
+系统持续监控。
+
+新文件出现：
+
+```text
+检测
+↓
+等待写入完成
+↓
+Hash
+↓
+解析
+↓
+入库
+↓
+缩略图
+↓
+自动分类
+```
+
+这是我认为你的实际使用场景里非常重要的功能。
+
+甚至比手动上传更重要。
+
+---
+
+# 5. 导入 Pipeline
+
+建议：
+
+```text
+File discovered
+        ↓
+File validation
+        ↓
+SHA-256
+        ↓
+Duplicate detection
+        ↓
+Media detection
+        ↓
+Metadata extraction
+        ↓
+Generator detection
+        ↓
+Generator-specific parser
+        ↓
+Normalize metadata
+        ↓
+Prompt parser
+        ↓
+Auto classification
+        ↓
+Thumbnail / Preview
+        ↓
+Embedding（可选）
+        ↓
+Search Index
+        ↓
+Ready
+```
+
+每一步都是独立 Job。
+
+---
+
+# 6. Metadata Parser 架构
+
+这是整个项目最重要的架构之一。
+
+不要写：
+
+```text
+if NovelAI:
+...
+elif ComfyUI:
+...
+elif A1111:
+...
+```
+
+应该做成 Parser Plugin。
+
+接口：
+
+```text
+MetadataParser
+
+detect(file, metadata)
+parse(file, metadata)
+normalize(result)
+```
+
+实现：
+
+```text
+NovelAIParser
+
+A1111Parser
+
+ComfyUIParser
+
+ForgeParser
+
+InvokeAIParser
+
+GenericEXIFParser
+
+GenericXMPParser
+
+VideoMetadataParser
+
+SidecarJSONParser
+```
+
+未来：
+
+```text
+RunwayParser
+
+KlingParser
+
+VeoParser
+
+WanParser
+
+HunyuanVideoParser
+
+SoraParser
+
+OtherVideoParser
+```
+
+这样未来不需要改变核心系统。
+
+---
+
+# 7. 元数据的三个层级
+
+必须区分：
+
+## Raw Metadata
+
+永远保存原始读取值。
+
+例如：
+
+```json
+{
+  "Comment": "...",
+  "parameters": "...",
+  "workflow": {...}
+}
+```
+
+---
+
+## Normalized Metadata
+
+转换成系统统一结构：
+
+```json
+{
+  "generator": "novelai",
+  "model": "...",
+  "prompt": "...",
+  "negative_prompt": "...",
+  "seed": 123456,
+  "steps": 28,
+  "cfg": 5.0,
+  "sampler": "...",
+  "width": 1024,
+  "height": 1536
+}
+```
+
+---
+
+## Derived Metadata
+
+系统分析得出的数据：
+
+```text
+characters
+style
+artists
+camera terms
+quality tags
+LoRA
+IP Adapter
+ControlNet
+NSFW
+orientation
+aspect ratio
+visual embedding
+duplicate group
+```
+
+这样做极其重要。
+
+因为：
+
+**原始数据绝不能因为 parser 更新而丢失。**
+
+之后 parser 升级可以直接：
+
+```text
+Raw Metadata
+     ↓
+Re-index
+     ↓
+New normalized metadata
+```
+
+而不用重新读取全部文件。
+
+---
+
+# 8. AI 图片标准 Metadata Schema
+
+建议核心字段：
+
+```text
+generator
+
+model
+model_hash
+model_family
+
+vae
+
+prompt
+negative_prompt
+
+seed
+subseed
+
+sampler
+scheduler
+
+steps
+cfg_scale
+
+width
+height
+
+clip_skip
+
+denoise_strength
+
+hires_enabled
+hires_upscaler
+hires_steps
+hires_scale
+
+lora[]
+embedding[]
+controlnet[]
+
+workflow
+
+created_at
+imported_at
+```
+
+---
+
+# 9. Prompt 不应该只是字符串
+
+这是项目区别于普通 DAM 的关键。
+
+例如：
+
+```text
+1girl, solo, white hair,
+blue eyes,
+<lora:abc:0.8>,
+(masterpiece:1.2)
+```
+
+系统应该进一步解析成：
+
+```text
+Prompt Token
+├── 1girl
+├── solo
+├── white hair
+├── blue eyes
+├── masterpiece
+└── LoRA abc
+```
+
+并记录：
+
+```text
+token
+weight
+position
+section
+positive / negative
+```
+
+以后就能搜索：
+
+```text
+tag:"white hair"
+```
+
+而不是：
+
+```text
+prompt contains "white hair"
+```
+
+---
+
+# 10. 自动元信息分类
+
+你的“自动分类”可以分成 4 层。
+
+## 第一层：来源分类
+
+```text
+NovelAI
+A1111
+ComfyUI
+Forge
+Unknown
+```
+
+---
+
+## 第二层：技术分类
+
+```text
+SD1.5
+SDXL
+Pony
+Illustrious
+Flux
+NovelAI
+Video
+```
+
+---
+
+## 第三层：Prompt 分类
+
+例如：
+
+```text
+Character
+Appearance
+Clothes
+Pose
+Scene
+Lighting
+Camera
+Style
+Artist
+Quality
+NSFW
+Other
+```
+
+比如：
+
+```text
+white hair
+→ Appearance / Hair
+
+blue eyes
+→ Appearance / Eyes
+
+school uniform
+→ Clothes
+
+looking at viewer
+→ Pose
+
+cinematic lighting
+→ Lighting
+```
+
+这个系统最好允许：
+
+```text
+规则
++
+字典
++
+AI
+```
+
+三种模式。
+
+---
+
+# 11. Tag 命名空间
+
+建议直接吸收 Hydrus 的设计思想：
+
+```text
+character:alice
+
+hair:white
+
+eyes:blue
+
+clothes:dress
+
+style:anime
+
+artist:xxx
+
+model:illustrious-xl
+
+lora:foo
+
+generator:novelai
+
+rating:5
+```
+
+这远强于单纯：
+
+```text
+white
+blue
+dress
+anime
+```
+
+因为不会发生语义冲突。
+
+---
+
+# 12. 自动 Tag Rule
+
+例如：
+
+```text
+IF
+generator = NovelAI
+THEN
+tag += generator:novelai
+```
+
+或者：
+
+```text
+IF
+prompt contains "1girl"
+AND
+prompt contains "white hair"
+
+THEN
+collection = "White Hair Girls"
+```
+
+再比如：
+
+```text
+IF
+width / height < 0.8
+THEN
+tag = orientation:portrait
+```
+
+用户应该可以配置。
+
+---
+
+# 13. 搜索系统
+
+这是另一个核心。
+
+我不建议只有：
+
+```text
+[搜索框]
+```
+
+而应该同时提供：
+
+### 简单搜索
+
+类似：
+
+```text
+white hair blue eyes
+```
+
+---
+
+### Advanced Filter Builder
+
+类似：
+
+```text
+Model
+is
+nai-diffusion-4
+
+AND
+
+CFG
+between
+4
+6
+
+AND
+
+Prompt
+contains
+white hair
+```
+
+---
+
+### Search DSL
+
+高级用户输入：
+
+```text
+generator:novelai
+AND model:"nai-diffusion-4"
+AND prompt:"white hair"
+AND cfg:[4 TO 6]
+```
+
+---
+
+# 14. 搜索语言设计
+
+例如：
+
+```text
+prompt:"white hair"
+```
+
+```text
+negative:"bad hands"
+```
+
+```text
+model:illustrious*
+```
+
+```text
+seed:123456
+```
+
+```text
+steps:>=28
+```
+
+```text
+cfg:4..6
+```
+
+```text
+width:>=1024
+```
+
+```text
+rating:>=4
+```
+
+```text
+tag:character:alice
+```
+
+---
+
+逻辑：
+
+```text
+AND
+OR
+NOT
+()
+```
+
+例如：
+
+```text
+(
+    prompt:"white hair"
+    OR prompt:"silver hair"
+)
+AND
+prompt:"blue eyes"
+AND
+NOT negative:"monochrome"
+AND
+rating:>=4
+```
+
+---
+
+甚至：
+
+```text
+generator:novelai
+AND
+(
+ model:"nai-diffusion-4"
+ OR model:"nai-diffusion-3"
+)
+AND
+prompt:"1girl"
+AND
+NOT tag:nsfw
+```
+
+---
+
+# 15. 保存搜索
+
+这一功能应该叫：
+
+**Smart Collection**
+
+例如建立：
+
+```text
+★ Best NovelAI Girls
+```
+
+查询：
+
+```text
+generator:novelai
+AND
+rating:>=4
+AND
+prompt:"1girl"
+```
+
+它不是一个固定 Album。
+
+新增图片符合条件以后自动进入。
+
+这是非常重要的概念。
+
+---
+
+# 16. Gallery UI
+
+主页面建议：
+
+```text
+┌────────────────────────────────────────────┐
+│ Search                                     │
+├─────────┬──────────────────────────────────┤
+│ Library │  □ □ □ □ □ □                    │
+│         │  □ □ □ □ □ □                    │
+│ Folder  │  □ □ □ □ □ □                    │
+│ Album   │                                  │
+│ Smart   │                                  │
+│ Tags    │                                  │
+│ Model   │                                  │
+│ LoRA    │                                  │
+│         │                                  │
+├─────────┴──────────────────────────────────┤
+```
+
+布局模式：
+
+```text
+Grid
+Masonry
+List
+Timeline
+```
+
+---
+
+# 17. 图片详情页
+
+点图片以后：
+
+```text
+┌───────────────────────────────┐
+│                               │
+│            IMAGE              │
+│                               │
+├───────────────────────────────┤
+│ ★ Favorite    ★★★★★           │
+├───────────────────────────────┤
+│ Prompt                        │
+│ [Copy]                        │
+│                               │
+│ Negative Prompt               │
+│ [Copy]                        │
+├───────────────────────────────┤
+│ Model                         │
+│ Sampler                       │
+│ Steps                         │
+│ CFG                           │
+│ Seed                          │
+├───────────────────────────────┤
+│ LoRA                          │
+│ Workflow                      │
+│ Tags                          │
+└───────────────────────────────┘
+```
+
+---
+
+# 18. 一键复制
+
+这里可以做得比现有工具更强。
+
+按钮：
+
+```text
+Copy Prompt
+
+Copy Negative Prompt
+
+Copy Seed
+
+Copy Model
+
+Copy Full Parameters
+
+Copy JSON
+
+Copy A1111 Parameters
+
+Copy NovelAI Parameters
+
+Copy ComfyUI Workflow
+```
+
+甚至支持：
+
+```text
+Copy as Markdown
+
+Copy as JSON
+
+Copy as YAML
+```
+
+---
+
+# 19. Metadata Template
+
+用户可以定义：
+
+```text
+NovelAI Copy Template
+```
+
+例如：
+
+```text
+Prompt:
+{{prompt}}
+
+Negative:
+{{negative_prompt}}
+
+Seed: {{seed}}
+Model: {{model}}
+Steps: {{steps}}
+CFG: {{cfg}}
+```
+
+点击：
+
+```text
+Copy Generation Info
+```
+
+即可。
+
+---
+
+# 20. ComfyUI 特殊设计
+
+ComfyUI 不应该只保存：
+
+```text
+Prompt
+Seed
+Model
+```
+
+而应该完整保留：
+
+```text
+Workflow JSON
+```
+
+并分析 Node：
+
+```text
+CheckpointLoader
+↓
+CLIPTextEncode
+↓
+KSampler
+↓
+VAE Decode
+```
+
+进一步提取：
+
+```text
+Checkpoint
+LoRA
+Sampler
+Scheduler
+Seed
+CFG
+Steps
+Denoise
+Positive Prompt
+Negative Prompt
+```
+
+原始 Workflow 同时保存。
+
+未来可以做到：
+
+```text
+Download Workflow
+
+Copy Workflow
+
+Open in ComfyUI
+```
+
+---
+
+# 21. Model / LoRA 反向索引
+
+建议把 Model 和 LoRA 升级为实体。
+
+比如：
+
+```text
+Model
+├── name
+├── hash
+├── version
+├── type
+└── assets
+```
+
+进入：
+
+```text
+illustrious-xl
+```
+
+可以直接看到：
+
+```text
+使用该模型生成的 12,872 张图片
+```
+
+LoRA 也是。
+
+---
+
+# 22. 图片相似性
+
+推荐至少做两种。
+
+## Perceptual Hash
+
+用于：
+
+```text
+类似文件
+裁剪版
+压缩版
+重新编码
+```
+
+例如：
+
+```text
+pHash
+dHash
+```
+
+---
+
+## CLIP Embedding
+
+用于：
+
+```text
+语义 / 视觉相似
+```
+
+例如：
+
+打开一张图片：
+
+```text
+Find Similar
+```
+
+寻找构图、角色或者视觉风格近似内容。
+
+Immich 已经证明 CLIP 风格的智能搜索在媒体管理系统中非常实用。:chatgpt-content-reference{index="7"}
+
+但我建议它属于 V2，而不是 MVP。
+
+---
+
+# 23. 去重
+
+至少：
+
+### Exact duplicate
+
+```text
+SHA-256
+```
+
+### Visual duplicate
+
+```text
+pHash
+```
+
+用户看到：
+
+```text
+Possible duplicates (4)
+```
+
+然后：
+
+```text
+Keep all
+
+Keep largest
+
+Keep oldest
+
+Keep newest
+```
+
+---
+
+# 24. 图片关系
+
+AI 生成还有传统相册没有的重要关系：
+
+```text
+Parent Asset
+        │
+ ┌──────┼────────┐
+ ↓      ↓        ↓
+Upscale Img2Img  Edit
+```
+
+建议数据库支持：
+
+```text
+derived_from
+```
+
+例如：
+
+```text
+Original
+↓
+Img2Img
+↓
+Upscale
+↓
+Photoshop Edit
+```
+
+最终可以显示：
+
+```text
+Generation Lineage
+```
+
+---
+
+# 25. 批次概念
+
+连续生成的：
+
+```text
+Seed 100
+Seed 101
+Seed 102
+Seed 103
+```
+
+应该可以自动识别为：
+
+```text
+Generation Batch
+```
+
+于是可以查看：
+
+```text
+Batch: 2026-09-25 18:32
+```
+
+这对 AI 图片管理非常有价值。
+
+---
+
+# 26. Video Metadata
+
+未来 AI 视频不能只使用图片表简单扩字段。
+
+统一 Asset：
+
+```text
+Asset
+├── Image
+└── Video
+```
+
+Video Metadata：
+
+```text
+duration
+fps
+
+width
+height
+
+codec
+bitrate
+
+audio_codec
+
+generator
+
+model
+
+prompt
+negative_prompt
+
+seed
+
+steps
+
+guidance
+
+motion_parameters
+
+source_image
+
+first_frame
+
+last_frame
+
+workflow
+```
+
+使用：
+
+```text
+ffprobe
+```
+
+提取技术参数。
+
+AI-specific metadata 则继续走 Parser Plugin。
+
+---
+
+# 27. 视频预览
+
+后台自动生成：
+
+```text
+poster.jpg
+
+preview.mp4
+
+storyboard.webp
+```
+
+避免 Gallery 直接加载原视频。
+
+---
+
+# 28. Sidecar Metadata
+
+这点一定要支持。
+
+例如：
+
+```text
+abc.png
+abc.json
+
+abc.mp4
+abc.json
+
+abc.png
+abc.txt
+```
+
+因为未来不同生成工具很可能无法可靠把全部 metadata 写入媒体文件。
+
+Sidecar 应该是一等公民。
+
+---
+
+# 29. 非破坏原则
+
+默认：
+
+**永远不要修改原始媒体文件。**
+
+用户修改：
+
+```text
+Tag
+Rating
+Collection
+Description
+```
+
+首先只写数据库。
+
+未来提供可选：
+
+```text
+Write metadata to XMP
+```
+
+或：
+
+```text
+Export sidecar metadata
+```
+
+---
+
+# 30. Storage 架构
+
+建议抽象：
+
+```text
+StorageProvider
+```
+
+实现：
+
+```text
+LocalFilesystemStorage
+
+S3Storage
+
+S3CompatibleStorage
+```
+
+于是：
+
+本地：
+
+```text
+D:/Media/
+```
+
+服务器：
+
+```text
+/data/media/
+```
+
+NAS：
+
+```text
+/mnt/nas/
+```
+
+未来：
+
+```text
+MinIO
+S3
+R2
+```
+
+都不改变业务层。
+
+---
+
+# 31. 两种 Library 模式
+
+这是非常重要的设计。
+
+## Managed Library
+
+上传文件：
+
+```text
+Upload
+↓
+系统接管
+↓
+按自己的目录保存
+```
+
+例如：
+
+```text
+library/
+2026/
+09/
+25/
+sha256.png
+```
+
+---
+
+## Indexed Library
+
+已有：
+
+```text
+D:/AI/
+```
+
+用户选择：
+
+```text
+Index Folder
+```
+
+系统只扫描：
+
+**不移动文件。**
+
+这非常适合你现在已有大量 SD / NovelAI 图片的情况。
+
+---
+
+# 32. 数据库建议
+
+### 本地
+
+```text
+SQLite
+```
+
+优势：
+
+- 零配置
+- 数据库就是一个文件
+- 非常适合 Desktop / 单用户
+
+---
+
+### Server
+
+```text
+PostgreSQL
+```
+
+支持：
+
+```text
+JSONB
+Full Text Search
+pg_trgm
+pgvector
+```
+
+这对后期复杂搜索很重要。
+
+应用层设计一个 repository abstraction：
+
+```text
+SQLite
+       ↘
+        Repository
+       ↗
+PostgreSQL
+```
+
+这样：
+
+同一套代码。
+
+---
+
+# 33. Search Engine
+
+第一阶段：
+
+**不要上 Elasticsearch。**
+
+使用：
+
+```text
+SQLite FTS5
+
+PostgreSQL FTS
++
+GIN Index
++
+pg_trgm
+```
+
+已经足够应付绝大部分元数据搜索。
+
+以后达到：
+
+```text
+数百万
+甚至千万 Asset
+```
+
+再考虑：
+
+```text
+OpenSearch
+```
+
+---
+
+# 34. 后端架构建议
+
+我建议：
+
+```text
+Python FastAPI
+```
+
+原因：
+
+AI metadata ecosystem 本身大量 Python 工具。
+
+可以直接整合：
+
+```text
+Pillow
+ExifTool
+FFmpeg
+ffprobe
+NovelAI metadata extractor
+CLIP
+transformers
+```
+
+而无需跨语言。
+
+---
+
+# 35. 前端建议
+
+```text
+React
++
+TypeScript
++
+Vite
+```
+
+UI：
+
+```text
+Tailwind CSS
+
+shadcn/ui
+```
+
+图片库的虚拟滚动：
+
+```text
+TanStack Virtual
+```
+
+请求和缓存：
+
+```text
+TanStack Query
+```
+
+---
+
+# 36. 后台 Job
+
+后台处理不能在 API request 里同步执行。
+
+需要：
+
+```text
+Job Queue
+```
+
+任务：
+
+```text
+metadata.extract
+
+thumbnail.generate
+
+video.preview
+
+hash.calculate
+
+embedding.generate
+
+auto.tag
+
+library.scan
+```
+
+初期：
+
+```text
+数据库 Job Queue
+```
+
+即可。
+
+服务器版本以后可以：
+
+```text
+Redis
++
+worker
+```
+
+---
+
+# 37. 推荐系统架构
+
+```text
+                       Browser
+                          │
+                          ▼
+                ┌─────────────────┐
+                │   React Web UI  │
+                └────────┬────────┘
+                         │ REST/API
+                         ▼
+                ┌─────────────────┐
+                │     FastAPI     │
+                └───────┬─────────┘
+                        │
+       ┌────────────────┼────────────────┐
+       │                │                │
+       ▼                ▼                ▼
+ Asset Service    Search Service   Metadata Service
+       │                │                │
+       │                │         ┌──────┴─────────┐
+       │                │         ▼                ▼
+       │                │     Parsers        Classifier
+       │                │
+       ▼                ▼
+   Database        Search Index
+       │
+       ▼
+ ┌──────────────┐
+ │ SQLite / PG  │
+ └──────────────┘
+
+              Background Worker
+                     │
+       ┌─────────────┼──────────────┐
+       ▼             ▼              ▼
+ Thumbnail        FFmpeg          CLIP
+       │
+       ▼
+ Storage Provider
+       │
+ ┌─────┼─────────┐
+ ▼     ▼         ▼
+Local NAS       S3
+```
+
+---
+
+# 38. Docker 部署
+
+服务器：
+
+```text
+docker compose up -d
+```
+
+建议默认：
+
+```text
+app
+postgres
+worker
+```
+
+可选：
+
+```text
+redis
+```
+
+目录：
+
+```text
+/data
+/config
+/cache
+```
+
+---
+
+# 39. Local 模式
+
+理想情况最终提供：
+
+```text
+GenMediaVault.exe
+```
+
+启动以后：
+
+```text
+http://localhost:PORT
+```
+
+自动打开浏览器。
+
+内部：
+
+```text
+Web UI
++
+FastAPI
++
+SQLite
+```
+
+NAS / Server 则运行 Docker。
+
+因此是：
+
+**同一套产品，两种部署形态。**
+
+---
+
+# 40. API First
+
+所有 UI 操作通过 API。
+
+例如：
+
+```text
+GET /api/assets
+
+GET /api/assets/{id}
+
+POST /api/assets/import
+
+GET /api/search
+
+GET /api/models
+
+GET /api/tags
+
+POST /api/assets/{id}/tags
+
+POST /api/library/scan
+```
+
+这样以后：
+
+```text
+ComfyUI Plugin
+A1111 Plugin
+Browser Extension
+CLI
+Mobile App
+```
+
+全部可以复用。
+
+---
+
+# 41. ComfyUI / SD 未来集成
+
+后期可以做一个：
+
+```text
+GenMedia Vault Node
+```
+
+生成完成后：
+
+```text
+ComfyUI
+   ↓
+HTTP API
+   ↓
+GenMedia Vault
+```
+
+自动入库。
+
+也可以：
+
+```text
+A1111
+↓
+Extension
+↓
+GenMedia Vault
+```
+
+这样连 Watch Folder 都不需要。
+
+---
+
+# 42. 收藏和人工 Metadata
+
+用户数据：
+
+```text
+favorite
+
+rating 1-5
+
+tags
+
+collections
+
+notes
+
+review_status
+```
+
+review_status：
+
+```text
+Unreviewed
+
+Keep
+
+Maybe
+
+Reject
+```
+
+可以用键盘：
+
+```text
+1 = Reject
+2 = Maybe
+3 = Keep
+
+F = Favorite
+
+1-5 = Rating
+```
+
+特别适合一次筛几百张 AI 图。
+
+---
+
+# 43. 批量操作
+
+Gallery 多选：
+
+```text
+Add Tag
+
+Remove Tag
+
+Add Collection
+
+Set Rating
+
+Favorite
+
+Move
+
+Export
+
+Delete
+
+Re-index Metadata
+```
+
+AI 图数量往往很大，所以：
+
+**Bulk 操作不是高级功能，而是核心功能。**
+
+---
+
+# 44. Export
+
+选择一批图片：
+
+```text
+Export
+```
+
+选：
+
+```text
+Original
+
+Image + metadata JSON
+
+Image + TXT Prompt
+
+ZIP
+
+CSV metadata
+
+Dataset
+```
+
+未来甚至：
+
+```text
+LoRA Training Dataset
+```
+
+导出：
+
+```text
+00001.png
+00001.txt
+
+00002.png
+00002.txt
+```
+
+这将非常有价值。
+
+---
+
+# 45. 安全删除
+
+删除流程：
+
+```text
+Library
+↓
+Trash
+↓
+30 days
+↓
+Permanent Delete
+```
+
+Indexed Library 默认建议：
+
+```text
+只从 Library 移除
+```
+
+而不是删除磁盘原文件。
+
+---
+
+# 46. Metadata Inspector
+
+详情页面增加：
+
+```text
+Metadata
+```
+
+三个 Tab：
+
+```text
+Normalized
+
+Raw
+
+Derived
+```
+
+非常方便 Debug。
+
+---
+
+# 47. Parser Debugger
+
+管理员模式：
+
+```text
+Detected Generator:
+NovelAI
+
+Detected Parser:
+NovelAIParser v3
+
+Confidence:
+99%
+
+Raw metadata:
+...
+
+Normalized:
+...
+```
+
+以后 metadata 兼容出现问题时非常重要。
+
+---
+
+# 48. 搜索调试
+
+高级模式：
+
+```text
+Explain Query
+```
+
+例如输入：
+
+```text
+model:pony AND prompt:"blue eyes"
+```
+
+显示：
+
+```text
+AND
+├── model = pony
+└── prompt contains "blue eyes"
+```
+
+避免复杂查询不知道为什么没结果。
+
+---
+
+# 49. 自动分类设计
+
+我建议做成独立 Rule Engine：
+
+```text
+Rule
+├── Name
+├── Condition
+├── Actions
+├── Priority
+└── Enabled
+```
+
+Condition：
+
+```text
+generator
+model
+prompt
+negative_prompt
+tag
+width
+height
+aspect_ratio
+file_type
+duration
+```
+
+Action：
+
+```text
+Add Tag
+Remove Tag
+Add Collection
+Rating
+Flag
+```
+
+---
+
+# 50. 示例 Rule
+
+```text
+Name:
+NovelAI Portrait
+
+IF:
+generator = novelai
+AND
+aspect_ratio < 0.8
+
+THEN:
+tag += ai:novelai
+tag += orientation:portrait
+```
+
+---
+
+# 51. 未来 AI 自动分类
+
+V2：
+
+用户可以开启：
+
+```text
+AI Auto Tagging
+```
+
+例如本地模型分析图片：
+
+```text
+1girl
+white hair
+blue eyes
+school uniform
+outdoor
+sunset
+```
+
+注意：
+
+这里 AI 视觉 Tag 和 Prompt Tag 必须区分。
+
+例如：
+
+```text
+prompt:hair:white
+```
+
+和：
+
+```text
+vision:hair:white
+```
+
+不能混在一起。
+
+否则：
+
+用户 Prompt 写了：
+
+```text
+blue eyes
+```
+
+但实际图片生成成：
+
+```text
+green eyes
+```
+
+会造成错误。
+
+---
+
+# 52. Search 也因此可以非常有意思
+
+例如：
+
+```text
+prompt:"blue eyes"
+AND
+vision:"green eyes"
+```
+
+找到：
+
+**Prompt 与生成结果不一致的图片。**
+
+这是普通图片管理工具根本无法做到的。
+
+---
+
+# 53. 数据模型初版
+
+核心：
+
+```text
+assets
+```
+
+```text
+id
+hash
+type
+
+filename
+path
+
+mime_type
+
+size
+
+width
+height
+duration
+
+created_at
+imported_at
+```
+
+---
+
+```text
+generation_metadata
+```
+
+```text
+asset_id
+
+generator
+
+model
+model_hash
+
+prompt
+negative_prompt
+
+seed
+
+steps
+cfg
+
+sampler
+scheduler
+
+raw_metadata JSON
+normalized_metadata JSON
+```
+
+---
+
+```text
+tags
+```
+
+```text
+id
+
+namespace
+name
+```
+
+---
+
+```text
+asset_tags
+```
+
+```text
+asset_id
+tag_id
+
+source
+
+confidence
+```
+
+其中：
+
+```text
+source
+```
+
+可以是：
+
+```text
+user
+metadata
+rule
+vision_ai
+```
+
+---
+
+```text
+collections
+```
+
+```text
+id
+
+name
+type
+query
+```
+
+type：
+
+```text
+static
+smart
+```
+
+---
+
+```text
+models
+```
+
+---
+
+```text
+loras
+```
+
+---
+
+```text
+asset_relationships
+```
+
+```text
+parent_id
+child_id
+
+relationship
+```
+
+例如：
+
+```text
+img2img
+upscale
+edit
+video_from_image
+```
+
+---
+
+# 54. MVP
+
+第一版只做真正高价值的部分。
+
+## MVP 必须有
+
+```text
+Web UI
+
+Local / Docker
+
+Image import
+
+Folder scan
+
+Watch Folder
+
+PNG / JPG / WEBP
+
+NovelAI Metadata
+
+A1111 Metadata
+
+ComfyUI Metadata
+
+EXIF
+
+Metadata normalization
+
+Gallery
+
+Image detail
+
+Prompt Copy
+
+Full Metadata Copy
+
+Tags
+
+Favorites
+
+Rating
+
+Collections
+
+Search
+
+Advanced Search
+
+AND / OR / NOT
+
+Metadata filter
+
+SHA256 duplicate detection
+
+Thumbnail generation
+```
+
+---
+
+# 55. V1
+
+增加：
+
+```text
+Video
+
+FFmpeg / ffprobe
+
+Smart Collection
+
+Auto Classification Rules
+
+Prompt Parsing
+
+Namespaced Tags
+
+Batch Operations
+
+Model Index
+
+LoRA Index
+
+Sidecar metadata
+
+pHash
+
+Duplicate Manager
+
+Trash
+
+Export
+```
+
+---
+
+# 56. V2
+
+增加：
+
+```text
+CLIP Search
+
+Visual Similarity
+
+AI Vision Auto Tag
+
+Semantic Search
+
+Natural Language Search
+
+ComfyUI Integration
+
+A1111 Integration
+
+Generation Lineage
+
+Workflow Graph
+
+AI Video Metadata
+
+Dataset Export
+
+Multi-user
+```
+
+---
+
+# 57. V3 可以出现真正非常强的东西
+
+比如：
+
+用户搜索：
+
+```text
+NovelAI V4，
+白发，
+蓝眼，
+室外，
+评分至少 4，
+CFG 4 到 6，
+排除 school uniform，
+找和这张图构图接近的。
+```
+
+系统把它变成：
+
+```text
+generator = novelai
+AND
+model = nai-v4
+AND
+prompt_tag = hair:white
+AND
+prompt_tag = eyes:blue
+AND
+vision_tag = scene:outdoor
+AND
+rating >= 4
+AND
+cfg BETWEEN 4 AND 6
+AND
+NOT prompt_tag = clothes:school_uniform
+```
+
+再：
+
+```text
+ORDER BY vector_similarity
+```
+
+这才是这个项目最终真正有竞争力的地方。
+
+---
+
+# 58. 我认为最关键的产品差异化
+
+这个项目最终不应该宣传成：
+
+> Self-hosted photo manager
+
+而应该是：
+
+> **Search Engine + Library for AI Generated Media**
+
+传统相册的核心对象是：
+
+```text
+照片
+```
+
+这个产品的核心对象是：
+
+```text
+生成结果
++
+生成参数
++
+生成过程
++
+模型
++
+Prompt
++
+资产关系
+```
+
+这就是它和 Immich / digiKam 最重要的区别。
+
+---
+
+# 59. 五个最值得优先做对的东西
+
+如果开发资源有限，优先顺序建议是：
+
+**第一：Metadata Parser Framework**
+
+NovelAI / A1111 / ComfyUI 元数据解析一定要扎实。
+
+**第二：Normalized Metadata**
+
+不同工具的参数必须映射到统一 Schema。
+
+**第三：Search DSL**
+
+搜索能力是整个产品的灵魂。
+
+**第四：Watch Folder**
+
+生成以后自动进入 Library，尽量让用户零操作。
+
+**第五：Gallery + Metadata 快速复用**
+
+找图 → 看参数 → 一键复制 → 重新生成。
+
+形成闭环：
+
+```text
+Generate
+   ↓
+Auto Import
+   ↓
+Organize
+   ↓
+Search
+   ↓
+Reuse Prompt / Parameters
+   ↓
+Generate
+```
+
+---
+
+# 60. 产品最核心的一句话
+
+这个项目真正解决的问题不是：
+
+> “我的图片放在哪里？”
+
+而是：
+
+> **“我几个月前到底是用什么模型、什么 Prompt、什么 LoRA、什么参数生成那张图的，以及我怎样在几十万张生成结果里马上把它找回来？”**
+
+整个产品和技术架构，都应该围绕这个问题设计。
+
+这里面我认为有一个特别重要的判断：**不要基于 Immich 直接魔改，也不要把项目做成 A1111 的一个扩展。** Immich 的媒体基础设施非常好，但它的数据核心仍然是“照片”；A1111 Image Browser 又过度绑定单一生成器。你更适合独立做一个系统，然后通过 Parser、Watch Folder、API 与各类生成器连接。
+
+另外，NovelAI 官方现在确实有专门的 metadata extraction 代码，包括从 alpha channel 中提取 stealth metadata，所以这一块最好直接按照官方逻辑做兼容，而不是只读 PNG 的常规文本字段。:chatgpt-content-reference{index="8"}
+
+下一阶段最值得继续往下细化的是 **“数据库 Schema + 搜索 DSL + Metadata 标准化 Schema + 页面信息架构”**。这四块确定以后，基本就已经从“产品想法”进入可以正式开工的系统设计阶段。
+
+问：继续
+
+答：
+这一阶段我会把前面的产品概念收敛成一套**可开发的系统设计 V0.2**。重点解决四件事：数据库怎么存、不同生成器的元信息怎么统一、复杂搜索怎么表达、前端页面怎么组织。
+
+# 1. 本阶段目标
+
+本阶段确定四个核心基础：
+
+1. 数据库 Schema
+2. Metadata Normalization Schema
+3. Search DSL
+4. Web 产品信息架构
+
+这四项一旦稳定，前后端就可以开始并行开发。
+
+---
+
+# 2. 总体领域模型
+
+系统核心领域建议拆成：
+
+```text
+Library
+│
+├── Asset
+│    ├── Physical File
+│    ├── Technical Metadata
+│    ├── Generation Metadata
+│    ├── Raw Metadata
+│    ├── Prompt
+│    ├── Tags
+│    ├── User Metadata
+│    └── Derived Metadata
+│
+├── Generator
+│
+├── Model
+│
+├── LoRA
+│
+├── Workflow
+│
+├── Collection
+│
+├── Smart Collection
+│
+├── Tag
+│
+├── Generation Batch
+│
+├── Relationship
+│
+└── Search
+```
+
+其中最重要的是：
+
+```text
+Asset != File
+```
+
+一个 Asset 是系统里的逻辑资产。
+
+一个 Asset 可以对应：
+
+```text
+Original File
+Preview File
+Thumbnail
+Proxy Video
+Sidecar
+Metadata
+```
+
+这能避免未来架构受单文件限制。
+
+---
+
+# 3. Asset 生命周期
+
+状态：
+
+```text
+DISCOVERED
+↓
+PENDING
+↓
+HASHING
+↓
+PARSING
+↓
+INDEXING
+↓
+READY
+```
+
+异常：
+
+```text
+FAILED
+```
+
+删除：
+
+```text
+READY
+↓
+TRASHED
+↓
+DELETED
+```
+
+建议字段：
+
+```text
+status
+processing_stage
+processing_error
+```
+
+这样 UI 可以清楚显示：
+
+```text
+正在解析元数据
+
+正在生成缩略图
+
+解析失败
+
+视频代理生成失败
+```
+
+---
+
+# 4. assets 表
+
+核心资产表：
+
+```sql
+assets
+```
+
+字段：
+
+```text
+id                  UUID
+
+library_id          UUID
+
+media_type          IMAGE / VIDEO / GIF / OTHER
+
+filename            TEXT
+extension           TEXT
+mime_type           TEXT
+
+width               INTEGER
+height              INTEGER
+
+duration_ms         INTEGER NULL
+
+file_size           BIGINT
+
+sha256              TEXT
+phash               TEXT NULL
+
+created_at          DATETIME
+modified_at         DATETIME
+imported_at         DATETIME
+
+taken_at            DATETIME NULL
+
+status              TEXT
+
+favorite            BOOLEAN
+
+rating              INTEGER NULL
+
+review_status       TEXT
+
+deleted_at          DATETIME NULL
+```
+
+索引：
+
+```text
+sha256
+
+media_type
+
+created_at
+
+imported_at
+
+favorite
+
+rating
+```
+
+---
+
+# 5. physical_files 表
+
+不建议直接把路径永久绑定在 asset 上。
+
+单独建立：
+
+```text
+physical_files
+```
+
+字段：
+
+```text
+id
+
+asset_id
+
+storage_id
+
+path
+
+file_role
+
+exists
+
+size
+
+mtime
+
+created_at
+```
+
+file_role：
+
+```text
+ORIGINAL
+
+THUMBNAIL
+
+PREVIEW
+
+VIDEO_PROXY
+
+POSTER
+
+SIDECAR
+
+EXPORT
+```
+
+这样：
+
+同一个 Asset 可以拥有：
+
+```text
+original.png
+
+thumb.webp
+
+preview.webp
+
+metadata.json
+```
+
+---
+
+# 6. libraries 表
+
+Library 代表一个媒体库。
+
+字段：
+
+```text
+id
+
+name
+
+mode
+
+storage_id
+
+root_path
+
+watch_enabled
+
+watch_recursive
+
+read_only
+
+created_at
+```
+
+mode：
+
+```text
+MANAGED
+
+INDEXED
+```
+
+---
+
+# 7. storage_providers 表
+
+```text
+storage_providers
+```
+
+字段：
+
+```text
+id
+
+name
+
+type
+
+config
+```
+
+type：
+
+```text
+LOCAL
+
+S3
+
+S3_COMPATIBLE
+```
+
+config 使用 JSON。
+
+例如：
+
+```json
+{
+  "root": "/data/media"
+}
+```
+
+或者：
+
+```json
+{
+  "endpoint": "...",
+  "bucket": "...",
+  "region": "..."
+}
+```
+
+敏感字段建议单独加密处理。
+
+---
+
+# 8. generation_metadata 表
+
+AI 生成信息单独拆表。
+
+```text
+generation_metadata
+```
+
+字段：
+
+```text
+id
+
+asset_id
+
+generator_id
+
+model_id
+
+vae_id
+
+seed
+
+subseed
+
+steps
+
+cfg_scale
+
+sampler
+
+scheduler
+
+width
+
+height
+
+denoise_strength
+
+clip_skip
+
+generation_time
+
+raw_prompt
+
+raw_negative_prompt
+
+normalized_prompt
+
+normalized_negative_prompt
+
+created_at
+```
+
+不要把所有东西都堆在这一张表。
+
+公共字段列式存储。
+
+少见或生成器专属字段进入：
+
+```text
+extra_metadata JSON
+```
+
+---
+
+# 9. generator 字段设计
+
+生成器本身单独实体化。
+
+```text
+generators
+```
+
+字段：
+
+```text
+id
+
+name
+
+family
+
+version
+
+parser_key
+```
+
+例如：
+
+```text
+NovelAI
+
+AUTOMATIC1111
+
+Forge
+
+ComfyUI
+
+InvokeAI
+
+Fooocus
+
+Krita AI
+
+Unknown
+```
+
+family：
+
+```text
+STABLE_DIFFUSION
+
+NOVELAI
+
+COMFYUI
+
+AI_VIDEO
+
+OTHER
+```
+
+---
+
+# 10. raw_metadata
+
+必须完整保留原始元数据。
+
+```text
+asset_raw_metadata
+```
+
+字段：
+
+```text
+id
+
+asset_id
+
+source
+
+parser
+
+parser_version
+
+raw_data JSON
+
+created_at
+```
+
+source：
+
+```text
+PNG_TEXT
+
+PNG_CHUNK
+
+NOVELAI_STEALTH
+
+EXIF
+
+XMP
+
+SIDECAR
+
+COMFYUI_WORKFLOW
+
+FFPROBE
+```
+
+重要原则：
+
+```text
+Raw Metadata = Immutable
+```
+
+解析器升级后：
+
+重新生成 Normalize 结果。
+
+不要修改 Raw。
+
+---
+
+# 11. metadata_versions
+
+推荐再增加：
+
+```text
+metadata_versions
+```
+
+记录：
+
+```text
+asset_id
+
+parser_name
+
+parser_version
+
+schema_version
+
+parsed_at
+```
+
+这样以后 parser 从：
+
+```text
+NovelAIParser 1.2
+```
+
+升级：
+
+```text
+NovelAIParser 1.5
+```
+
+可以查询：
+
+```text
+所有还没重新解析的旧资产
+```
+
+---
+
+# 12. Prompt 数据模型
+
+Prompt 至少有三个层次。
+
+## 原始文本
+
+```text
+raw_prompt
+```
+
+完全保存原文。
+
+---
+
+## Normalized Prompt
+
+处理：
+
+```text
+空格
+
+换行
+
+分隔符
+
+转义
+
+统一格式
+```
+
+但不改变语义。
+
+---
+
+## Tokenized Prompt
+
+单独表：
+
+```text
+prompt_tokens
+```
+
+字段：
+
+```text
+id
+
+asset_id
+
+prompt_type
+
+token
+
+normalized_token
+
+weight
+
+position
+
+namespace
+
+category
+
+source
+```
+
+prompt_type：
+
+```text
+POSITIVE
+
+NEGATIVE
+```
+
+---
+
+# 13. Prompt 示例
+
+原始：
+
+```text
+1girl, solo, white hair, blue eyes,
+(masterpiece:1.2),
+<lora:animeStyle:0.8>
+```
+
+解析：
+
+```text
+1girl
+weight=1.0
+
+solo
+weight=1.0
+
+white hair
+weight=1.0
+
+blue eyes
+weight=1.0
+
+masterpiece
+weight=1.2
+
+lora:animeStyle
+weight=0.8
+```
+
+---
+
+# 14. Prompt Category
+
+自动分类：
+
+```text
+CHARACTER
+
+BODY
+
+HAIR
+
+EYES
+
+CLOTHING
+
+POSE
+
+ACTION
+
+SCENE
+
+OBJECT
+
+CAMERA
+
+LIGHTING
+
+STYLE
+
+ARTIST
+
+QUALITY
+
+MODEL_CONTROL
+
+NSFW
+
+UNKNOWN
+```
+
+注意：
+
+这些 category 不应该硬编码到程序里。
+
+应该可以扩展。
+
+---
+
+# 15. Tag 系统
+
+建议 Tag 使用 namespace。
+
+数据库：
+
+```text
+tags
+```
+
+字段：
+
+```text
+id
+
+namespace
+
+name
+
+normalized_name
+
+display_name
+
+description
+```
+
+唯一键：
+
+```text
+(namespace, normalized_name)
+```
+
+示例：
+
+```text
+character:alice
+
+hair:white
+
+eyes:blue
+
+clothes:dress
+
+style:anime
+
+generator:novelai
+
+model:illustrious-xl
+
+source:vision
+```
+
+---
+
+# 16. asset_tags
+
+```text
+asset_tags
+```
+
+字段：
+
+```text
+asset_id
+
+tag_id
+
+source
+
+confidence
+
+rule_id
+
+created_at
+```
+
+source：
+
+```text
+USER
+
+PROMPT
+
+METADATA
+
+RULE
+
+VISION
+
+SYSTEM
+```
+
+这点非常重要。
+
+用户必须能够知道：
+
+```text
+这个标签从哪里来的？
+```
+
+---
+
+# 17. Model 数据
+
+```text
+models
+```
+
+字段：
+
+```text
+id
+
+name
+
+display_name
+
+model_family
+
+model_type
+
+hash
+
+sha256
+
+source
+
+version
+
+metadata JSON
+```
+
+model_type：
+
+```text
+CHECKPOINT
+
+DIFFUSION_MODEL
+
+UNET
+
+VIDEO_MODEL
+```
+
+---
+
+# 18. LoRA
+
+```text
+loras
+```
+
+字段：
+
+```text
+id
+
+name
+
+hash
+
+version
+
+metadata JSON
+```
+
+资产关系：
+
+```text
+asset_loras
+```
+
+字段：
+
+```text
+asset_id
+
+lora_id
+
+weight_model
+
+weight_clip
+```
+
+以后可以做到：
+
+```text
+查找所有使用 LoRA X 且权重大于 0.8 的图片
+```
+
+---
+
+# 19. VAE
+
+建议单独表：
+
+```text
+vaes
+```
+
+虽然第一版 UI 可以不突出。
+
+这样后续可以查询：
+
+```text
+vae:xxx
+```
+
+---
+
+# 20. Sampler / Scheduler
+
+Sampler 本身不一定需要独立实体。
+
+直接标准化字符串即可。
+
+例如：
+
+```text
+euler
+
+euler_a
+
+dpmpp_2m
+
+dpmpp_sde
+```
+
+scheduler：
+
+```text
+normal
+
+karras
+
+exponential
+
+sgm_uniform
+```
+
+需要 Alias Mapping：
+
+```text
+DPM++ 2M Karras
+
+→
+
+sampler = dpmpp_2m
+scheduler = karras
+```
+
+---
+
+# 21. Metadata Normalization Schema
+
+建议内部统一 Schema：
+
+```json
+{
+  "schema_version": "1.0",
+
+  "generator": {
+    "name": "novelai",
+    "version": null
+  },
+
+  "model": {
+    "name": "nai-diffusion-4",
+    "hash": null,
+    "family": "novelai"
+  },
+
+  "generation": {
+    "seed": 123456789,
+    "steps": 28,
+    "cfg": 5.0,
+    "sampler": "k_euler_ancestral",
+    "scheduler": null,
+    "width": 1024,
+    "height": 1536
+  },
+
+  "prompt": {
+    "positive": "...",
+    "negative": "..."
+  },
+
+  "loras": [],
+
+  "control": {},
+
+  "workflow": null,
+
+  "extra": {}
+}
+```
+
+---
+
+# 22. 为什么必须有 schema_version
+
+因为未来字段一定会变化。
+
+例如：
+
+```text
+1.0
+```
+
+只有：
+
+```text
+seed
+cfg
+sampler
+```
+
+未来：
+
+```text
+1.3
+```
+
+可能增加：
+
+```text
+guidance_rescale
+noise_schedule
+reference_images
+video_motion_strength
+```
+
+通过：
+
+```text
+schema_version
+```
+
+才能安全 migration。
+
+---
+
+# 23. NovelAI Adapter
+
+输出统一：
+
+```text
+generator.name
+
+model.name
+
+seed
+
+steps
+
+cfg
+
+sampler
+
+prompt
+
+negative_prompt
+```
+
+NovelAI 独有字段：
+
+```text
+ucPreset
+
+qualityToggle
+
+sm
+
+sm_dyn
+
+dynamic_thresholding
+```
+
+放：
+
+```text
+extra.novelai
+```
+
+例如：
+
+```json
+{
+  "extra": {
+    "novelai": {
+      "uc_preset": 0,
+      "quality_toggle": true
+    }
+  }
+}
+```
+
+---
+
+# 24. A1111 Adapter
+
+例如原数据：
+
+```text
+Steps: 28,
+Sampler: DPM++ 2M Karras,
+CFG scale: 7,
+Seed: 123,
+Size: 1024x1536,
+Model hash: ...
+```
+
+Normalize：
+
+```text
+steps = 28
+
+sampler = dpmpp_2m
+
+scheduler = karras
+
+cfg = 7
+
+seed = 123
+
+width = 1024
+
+height = 1536
+```
+
+---
+
+# 25. ComfyUI Adapter
+
+ComfyUI 最大的问题：
+
+数据不是平面的。
+
+它是 Graph。
+
+建议保存：
+
+```text
+workflow.raw
+```
+
+另外生成：
+
+```text
+workflow.summary
+```
+
+例如：
+
+```json
+{
+  "checkpoint": "abc.safetensors",
+  "sampler": "euler",
+  "scheduler": "normal",
+  "steps": 30,
+  "cfg": 6,
+  "seed": 123,
+  "loras": [
+    {
+      "name": "foo",
+      "weight": 0.8
+    }
+  ]
+}
+```
+
+---
+
+# 26. workflow_nodes 表
+
+V1 可以增加：
+
+```text
+workflow_nodes
+```
+
+字段：
+
+```text
+workflow_id
+
+node_id
+
+node_type
+
+title
+
+properties JSON
+```
+
+关系：
+
+```text
+workflow_edges
+```
+
+这样以后可以：
+
+```text
+查找所有用了 IPAdapter 的 Workflow
+```
+
+或者：
+
+```text
+查找同时有两个 KSampler 的 Workflow
+```
+
+---
+
+# 27. Sidecar 优先级
+
+一个资产可能同时出现：
+
+```text
+Embedded Metadata
+
+XMP
+
+JSON
+
+TXT
+```
+
+需要定义 Merge Priority。
+
+建议：
+
+```text
+Explicit Sidecar JSON
+>
+Generator Embedded Metadata
+>
+XMP
+>
+EXIF
+>
+Filename inference
+```
+
+但：
+
+Raw 全部保存。
+
+Normalize 时决定优先级。
+
+---
+
+# 28. Metadata Conflict
+
+例如：
+
+Embedded：
+
+```text
+seed = 123
+```
+
+Sidecar：
+
+```text
+seed = 456
+```
+
+不要悄悄覆盖。
+
+记录：
+
+```text
+metadata_conflicts
+```
+
+字段：
+
+```text
+asset_id
+
+field
+
+source_a
+
+value_a
+
+source_b
+
+value_b
+
+resolved_source
+```
+
+高级 UI 可以显示：
+
+```text
+Metadata conflict detected
+```
+
+---
+
+# 29. Collections
+
+两种：
+
+```text
+STATIC
+
+SMART
+```
+
+Static：
+
+用户手动添加。
+
+Smart：
+
+保存搜索条件。
+
+数据库：
+
+```text
+collections
+```
+
+字段：
+
+```text
+id
+
+name
+
+type
+
+query
+
+query_ast JSON
+
+description
+
+created_at
+```
+
+---
+
+# 30. Generation Batch
+
+增加：
+
+```text
+generation_batches
+```
+
+字段：
+
+```text
+id
+
+generator
+
+started_at
+
+ended_at
+
+common_prompt_hash
+
+common_model
+
+source_directory
+```
+
+资产：
+
+```text
+batch_id
+```
+
+---
+
+# 31. 自动 Batch Detection
+
+如果满足：
+
+```text
+同目录
+
+时间间隔 < 60 秒
+
+同 Model
+
+Prompt 基本一致
+```
+
+可识别：
+
+```text
+同一个 Batch
+```
+
+但是自动识别只应该：
+
+```text
+suggest
+```
+
+不要永久强绑定。
+
+---
+
+# 32. Asset Relationships
+
+```text
+asset_relationships
+```
+
+字段：
+
+```text
+source_asset_id
+
+target_asset_id
+
+relationship_type
+
+confidence
+
+source
+```
+
+relationship_type：
+
+```text
+DERIVED_FROM
+
+IMG2IMG_FROM
+
+UPSCALE_OF
+
+EDIT_OF
+
+VIDEO_FROM_IMAGE
+
+FRAME_FROM_VIDEO
+
+DUPLICATE_OF
+
+VARIANT_OF
+```
+
+---
+
+# 33. Search 系统总体设计
+
+搜索需要三层：
+
+```text
+Simple Search
+
+Advanced Search Builder
+
+Search DSL
+```
+
+三者最后统一转换成：
+
+```text
+Search AST
+```
+
+再由 AST 编译成：
+
+```text
+SQLite SQL
+```
+
+或者：
+
+```text
+PostgreSQL SQL
+```
+
+非常重要：
+
+**不要让 UI 自己拼 SQL。**
+
+---
+
+# 34. Search AST
+
+例如：
+
+```text
+generator:novelai
+AND
+cfg>=5
+AND
+(prompt:"white hair" OR tag:hair:white)
+```
+
+转：
+
+```json
+{
+  "type": "and",
+  "children": [
+    {
+      "field": "generator",
+      "operator": "eq",
+      "value": "novelai"
+    },
+    {
+      "field": "cfg",
+      "operator": "gte",
+      "value": 5
+    },
+    {
+      "type": "or",
+      "children": [
+        {
+          "field": "prompt",
+          "operator": "contains",
+          "value": "white hair"
+        },
+        {
+          "field": "tag",
+          "operator": "eq",
+          "value": "hair:white"
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+# 35. DSL 基础语法
+
+最常见：
+
+```text
+field:value
+```
+
+例如：
+
+```text
+model:illustrious
+```
+
+字符串：
+
+```text
+prompt:"white hair"
+```
+
+范围：
+
+```text
+cfg:4..7
+```
+
+比较：
+
+```text
+steps:>=30
+```
+
+通配符：
+
+```text
+model:pony*
+```
+
+---
+
+# 36. 布尔运算
+
+支持：
+
+```text
+AND
+
+OR
+
+NOT
+```
+
+例如：
+
+```text
+white hair AND blue eyes
+```
+
+或者：
+
+```text
+prompt:"white hair"
+AND
+NOT prompt:"red eyes"
+```
+
+---
+
+# 37. 括号
+
+必须支持：
+
+```text
+(
+ model:pony
+ OR model:illustrious
+)
+AND
+rating:>=4
+```
+
+---
+
+# 38. 默认字段
+
+直接输入：
+
+```text
+white hair
+```
+
+建议解释成：
+
+```text
+prompt contains "white hair"
+OR
+tag contains "white hair"
+OR
+filename contains "white hair"
+```
+
+未来增加：
+
+```text
+semantic
+```
+
+---
+
+# 39. Search Fields
+
+基础：
+
+```text
+filename
+
+path
+
+type
+
+extension
+
+width
+
+height
+
+ratio
+
+duration
+
+size
+
+created
+
+imported
+
+favorite
+
+rating
+
+review
+```
+
+AI：
+
+```text
+generator
+
+model
+
+model_hash
+
+vae
+
+prompt
+
+negative
+
+seed
+
+steps
+
+cfg
+
+sampler
+
+scheduler
+
+lora
+
+tag
+
+batch
+```
+
+高级：
+
+```text
+workflow
+
+node
+
+metadata
+```
+
+---
+
+# 40. Tag 搜索
+
+支持：
+
+```text
+tag:hair:white
+```
+
+或者：
+
+```text
+tag:"hair:white"
+```
+
+也应该支持 namespace：
+
+```text
+tag.namespace:hair
+```
+
+---
+
+# 41. Prompt 搜索语义
+
+需要区分：
+
+```text
+prompt:"white hair"
+```
+
+全文包含。
+
+以及：
+
+```text
+prompt.tag:"white hair"
+```
+
+必须匹配解析后的完整 token。
+
+区别：
+
+```text
+prompt:"hair"
+```
+
+可能匹配：
+
+```text
+white hair
+
+long hair
+
+hair ornament
+```
+
+而：
+
+```text
+prompt.tag:"white hair"
+```
+
+只匹配：
+
+```text
+white hair
+```
+
+---
+
+# 42. LoRA 搜索
+
+```text
+lora:animeStyle
+```
+
+高级：
+
+```text
+lora.name:animeStyle
+
+lora.weight:>=0.8
+```
+
+V2 可以支持：
+
+```text
+lora(animeStyle).weight>=0.8
+```
+
+不过第一版不要让 DSL 太复杂。
+
+---
+
+# 43. 日期
+
+支持：
+
+```text
+created:2026-09-25
+```
+
+```text
+created:2026-09-01..2026-09-30
+```
+
+```text
+created:>=2026-09-01
+```
+
+后期：
+
+```text
+created:today
+
+created:last7days
+```
+
+---
+
+# 44. Aspect Ratio
+
+提供特殊字段：
+
+```text
+orientation:portrait
+
+orientation:landscape
+
+orientation:square
+```
+
+和：
+
+```text
+ratio:>1.5
+```
+
+---
+
+# 45. Resolution Shortcut
+
+还可以支持：
+
+```text
+resolution:4k
+```
+
+转换：
+
+```text
+width >= 3840
+OR
+height >= 3840
+```
+
+但第一版可暂不实现。
+
+---
+
+# 46. Missing 查询
+
+非常有用：
+
+```text
+model:null
+```
+
+或者：
+
+```text
+NOT EXISTS(model)
+```
+
+建议语法：
+
+```text
+model:missing
+```
+
+例如：
+
+```text
+generator:unknown
+
+model:missing
+```
+
+用于找解析失败资产。
+
+---
+
+# 47. Regex
+
+高级用户可能会需要：
+
+```text
+prompt:/white|silver hair/
+```
+
+但建议：
+
+默认关闭。
+
+因为数据库实现和性能都复杂。
+
+可以 V1.5 再加入。
+
+---
+
+# 48. Search Alias
+
+字段可以有 Alias：
+
+```text
+neg
+→ negative
+
+fav
+→ favorite
+
+gen
+→ generator
+```
+
+但 UI 自动补全应该始终显示标准名称。
+
+---
+
+# 49. DSL 自动补全
+
+用户输入：
+
+```text
+mod
+```
+
+提示：
+
+```text
+model:
+
+model_hash:
+```
+
+输入：
+
+```text
+model:
+```
+
+提示：
+
+```text
+illustrious-xl
+pony-xl
+nai-diffusion-4
+```
+
+输入：
+
+```text
+sampler:
+```
+
+提示所有已使用 sampler。
+
+---
+
+# 50. 查询错误提示
+
+例如：
+
+```text
+cfg:abc
+```
+
+应提示：
+
+```text
+CFG expects a numeric value
+```
+
+而不是简单：
+
+```text
+Invalid search
+```
+
+---
+
+# 51. Explain Query
+
+输入：
+
+```text
+model:pony AND cfg:5..7
+```
+
+显示：
+
+```text
+Model equals "pony"
+
+AND
+
+CFG between 5 and 7
+```
+
+这对高级搜索非常重要。
+
+---
+
+# 52. Search URL
+
+所有查询应该可以 URL 化。
+
+例如：
+
+```text
+/library?q=model%3Apony+AND+rating%3A%3E%3D4
+```
+
+这样可以：
+
+```text
+Bookmark
+
+分享
+
+浏览器前进后退
+```
+
+---
+
+# 53. 排序
+
+支持：
+
+```text
+Imported newest
+
+Imported oldest
+
+Created newest
+
+Created oldest
+
+Rating
+
+File size
+
+Resolution
+
+Seed
+
+Random
+```
+
+DSL 后期可以：
+
+```text
+sort:created_desc
+```
+
+但初期建议排序独立 UI。
+
+---
+
+# 54. Facet Search
+
+搜索结果旁边统计：
+
+```text
+Generator
+
+NovelAI 12,320
+
+ComfyUI 8,921
+
+A1111 2,802
+```
+
+Model：
+
+```text
+nai-v4       8,402
+
+illustrious  6,711
+
+pony         5,201
+```
+
+这会极大提升浏览效率。
+
+---
+
+# 55. 页面信息架构
+
+一级导航建议：
+
+```text
+Library
+
+Collections
+
+Models
+
+LoRAs
+
+Tags
+
+Duplicates
+
+Jobs
+
+Settings
+```
+
+后期：
+
+```text
+Workflows
+
+Batches
+```
+
+---
+
+# 56. Library 页面
+
+这是最核心页面。
+
+结构：
+
+```text
+┌─────────────────────────────────────────────┐
+│ Search                                     │
+├───────────┬─────────────────────────────────┤
+│           │ Toolbar                         │
+│ Filters   ├─────────────────────────────────┤
+│           │                                 │
+│ Library   │ Gallery                         │
+│ Type      │                                 │
+│ Model     │                                 │
+│ Generator │                                 │
+│ Tags      │                                 │
+│ Rating    │                                 │
+│           │                                 │
+└───────────┴─────────────────────────────────┘
+```
+
+---
+
+# 57. Gallery 卡片
+
+卡片不要展示太多信息。
+
+建议默认：
+
+```text
+[IMAGE]
+
+★★★★★
+
+Model
+Resolution
+```
+
+hover：
+
+```text
+Filename
+
+Generator
+
+Seed
+
+Created
+```
+
+---
+
+# 58. Gallery Density
+
+支持：
+
+```text
+Compact
+
+Medium
+
+Large
+```
+
+因为用户可能一次要查看：
+
+```text
+50
+
+200
+
+1000
+```
+
+张图。
+
+---
+
+# 59. Masonry 与 Grid
+
+建议：
+
+默认：
+
+```text
+Masonry
+```
+
+更适合不同比例图片。
+
+另一个模式：
+
+```text
+Uniform Grid
+```
+
+适合批量筛图。
+
+---
+
+# 60. Detail Viewer
+
+点击图片：
+
+建议不是直接跳页面。
+
+第一层打开：
+
+```text
+Lightbox
+```
+
+右侧 metadata panel。
+
+```text
+┌─────────────────────┬───────────────┐
+│                     │ Metadata      │
+│                     │               │
+│       Image         │ Prompt        │
+│                     │ Model         │
+│                     │ Seed          │
+│                     │ Tags          │
+└─────────────────────┴───────────────┘
+```
+
+这样筛图速度更快。
+
+---
+
+# 61. Full Detail Page
+
+需要完整查看时：
+
+```text
+Open Details
+```
+
+进入独立页面。
+
+Tab：
+
+```text
+Overview
+
+Generation
+
+Prompt
+
+Metadata
+
+Workflow
+
+Relations
+
+File
+```
+
+---
+
+# 62. Overview Tab
+
+显示：
+
+```text
+Image
+
+Favorite
+
+Rating
+
+Review status
+
+Tags
+
+Collection
+
+Notes
+```
+
+---
+
+# 63. Generation Tab
+
+显示：
+
+```text
+Generator
+
+Model
+
+Model Hash
+
+VAE
+
+Sampler
+
+Scheduler
+
+Steps
+
+CFG
+
+Seed
+
+Resolution
+
+LoRA
+
+ControlNet
+```
+
+每一个值最好都：
+
+```text
+Clickable
+```
+
+例如点击：
+
+```text
+Model: illustrious-xl
+```
+
+直接搜索：
+
+```text
+model:illustrious-xl
+```
+
+---
+
+# 64. Prompt Tab
+
+结构：
+
+```text
+Positive Prompt
+[Copy]
+
+Negative Prompt
+[Copy]
+```
+
+视图：
+
+```text
+Raw
+
+Formatted
+
+Tokens
+```
+
+Tokens 可以彩色分类。
+
+例如：
+
+```text
+Character
+
+Appearance
+
+Pose
+
+Scene
+
+Style
+```
+
+---
+
+# 65. Metadata Tab
+
+子 Tab：
+
+```text
+Normalized
+
+Raw
+
+Derived
+```
+
+Normalized：
+
+系统统一字段。
+
+Raw：
+
+原始 metadata JSON。
+
+Derived：
+
+系统自动推导。
+
+---
+
+# 66. Copy 菜单
+
+点击 Copy：
+
+```text
+Copy Prompt
+
+Copy Negative Prompt
+
+Copy Prompt + Negative
+
+Copy Seed
+
+Copy Generation Parameters
+
+Copy JSON
+
+Copy Metadata Template
+```
+
+支持快捷键。
+
+例如：
+
+```text
+Ctrl + Shift + C
+```
+
+复制完整 generation metadata。
+
+---
+
+# 67. Workflow Tab
+
+ComfyUI：
+
+显示：
+
+```text
+Workflow Graph
+
+Node list
+
+Raw JSON
+```
+
+按钮：
+
+```text
+Copy Workflow
+
+Download Workflow
+```
+
+未来：
+
+```text
+Open in ComfyUI
+```
+
+---
+
+# 68. Relations Tab
+
+显示：
+
+```text
+Parent
+
+Children
+
+Variants
+
+Duplicates
+
+Similar
+```
+
+可视化：
+
+```text
+Original
+   │
+   ├── Upscale
+   │
+   └── Img2Img
+        │
+        └── Video
+```
+
+---
+
+# 69. Models 页面
+
+Models 应该不仅是 Filter。
+
+进入：
+
+```text
+/models
+```
+
+看到：
+
+```text
+Illustrious XL
+
+12,842 assets
+
+Last used:
+2026-09-25
+```
+
+点进去：
+
+```text
+Model Details
+```
+
+统计：
+
+```text
+Asset count
+
+Average rating
+
+Most common tags
+
+Common sampler
+
+Common CFG
+
+Common resolution
+```
+
+这会慢慢形成：
+
+**自己的 AI 生成知识库。**
+
+---
+
+# 70. LoRA 页面
+
+同理：
+
+```text
+LoRA
+
+Asset count
+
+Weight distribution
+
+Models used with
+
+Top prompt tags
+```
+
+---
+
+# 71. Tag Explorer
+
+页面：
+
+```text
+/tags
+```
+
+树状：
+
+```text
+character
+├── alice
+├── bob
+└── carol
+
+hair
+├── white
+├── black
+└── blonde
+```
+
+或者：
+
+```text
+namespace
+```
+
+切换。
+
+---
+
+# 72. Smart Collection 页面
+
+例如：
+
+```text
+⭐ Best Illustrious Portraits
+```
+
+底层查询：
+
+```text
+model:illustrious
+AND
+rating:>=4
+AND
+orientation:portrait
+```
+
+编辑时展示：
+
+```text
+Visual Builder
+```
+
+以及：
+
+```text
+DSL
+```
+
+两种方式实时同步。
+
+---
+
+# 73. Advanced Search Builder
+
+例如：
+
+```text
+MATCH ALL
+
+[Model]       [is]       [Illustrious]
+
+[Rating]      [>=]       [4]
+
+[Prompt]      [contains] [white hair]
+```
+
+然后增加 group：
+
+```text
+AND
+
+    MATCH ANY
+
+    [Eyes] blue
+
+    [Eyes] green
+```
+
+最终生成：
+
+```text
+model:illustrious
+AND
+rating:>=4
+AND
+(
+ prompt:"blue eyes"
+ OR
+ prompt:"green eyes"
+)
+```
+
+---
+
+# 74. Bulk Selection
+
+点击：
+
+```text
+Select
+```
+
+或者 Shift 多选。
+
+底部出现：
+
+```text
+47 selected
+
+Add Tags
+
+Collection
+
+Rating
+
+Export
+
+Reparse
+
+Delete
+```
+
+---
+
+# 75. Keyboard Workflow
+
+对于大量 AI 图筛选，这个很重要。
+
+建议：
+
+```text
+← →    上一张 / 下一张
+
+F      Favorite
+
+1-5    Rating
+
+K      Keep
+
+M      Maybe
+
+R      Reject
+
+C      Copy prompt
+
+Delete Trash
+```
+
+---
+
+# 76. Import 页面
+
+方式：
+
+```text
+Upload Files
+
+Upload Folder
+
+Add Indexed Folder
+
+Watch Folder
+```
+
+状态：
+
+```text
+Scanning 12,832 files
+
+New       932
+
+Duplicate 412
+
+Failed    3
+```
+
+---
+
+# 77. Jobs 页面
+
+后台任务可观察：
+
+```text
+Thumbnail Generation
+
+Metadata Extraction
+
+Library Scan
+
+Embedding
+
+Video Proxy
+```
+
+显示：
+
+```text
+Pending
+
+Running
+
+Completed
+
+Failed
+```
+
+失败可：
+
+```text
+Retry
+```
+
+---
+
+# 78. Settings 信息架构
+
+```text
+General
+
+Libraries
+
+Storage
+
+Metadata
+
+Parsers
+
+Search
+
+Tags
+
+Rules
+
+Thumbnail
+
+Video
+
+AI
+
+Users
+
+System
+```
+
+MVP：
+
+```text
+General
+
+Libraries
+
+Metadata
+
+Thumbnail
+
+System
+```
+
+---
+
+# 79. Metadata Parser Settings
+
+显示：
+
+```text
+NovelAI Parser
+Enabled
+
+ComfyUI Parser
+Enabled
+
+A1111 Parser
+Enabled
+
+Generic EXIF
+Enabled
+```
+
+还可以显示：
+
+```text
+Parser Version
+```
+
+---
+
+# 80. Reparse 功能
+
+升级 Parser 后：
+
+```text
+NovelAI Parser
+1.3 → 1.4
+
+32,843 assets use older parser
+```
+
+按钮：
+
+```text
+Reparse All
+```
+
+但因为 Raw Metadata 已经保存：
+
+大部分情况下不需要重新读源文件。
+
+---
+
+# 81. 自动分类 Rule 页面
+
+```text
+Rules
+```
+
+例如：
+
+```text
+White Hair
+
+IF
+prompt contains "white hair"
+
+THEN
+add tag hair:white
+```
+
+支持拖动优先级。
+
+---
+
+# 82. Rule Execution
+
+顺序：
+
+```text
+Extract
+
+Normalize
+
+Prompt Parse
+
+Built-in Rule
+
+User Rule
+
+AI Classification
+```
+
+重要：
+
+用户 Rule 应该可以：
+
+```text
+Override
+```
+
+系统推断结果。
+
+---
+
+# 83. 数据库技术建议
+
+Local：
+
+```text
+SQLite
+```
+
+扩展：
+
+```text
+FTS5
+```
+
+Server：
+
+```text
+PostgreSQL
+```
+
+扩展：
+
+```text
+pg_trgm
+
+pgvector
+```
+
+JSON：
+
+```text
+JSONB
+```
+
+---
+
+# 84. Repository Layer
+
+应用层定义：
+
+```text
+AssetRepository
+
+MetadataRepository
+
+SearchRepository
+
+TagRepository
+```
+
+不要让业务层直接：
+
+```text
+import sqlite
+```
+
+这样本地 / Server 才能共用。
+
+---
+
+# 85. Search Compiler
+
+结构：
+
+```text
+DSL String
+↓
+Lexer
+↓
+Parser
+↓
+AST
+↓
+Validator
+↓
+Search Compiler
+↓
+SQLite / PostgreSQL
+```
+
+---
+
+# 86. Parser Architecture
+
+```text
+File
+↓
+MetadataDetector
+↓
+Candidate Parsers
+↓
+Confidence Score
+↓
+Best Parser
+↓
+Normalized Metadata
+```
+
+Parser 接口：
+
+```text
+detect()
+
+extract()
+
+normalize()
+```
+
+返回：
+
+```text
+confidence
+
+raw
+
+normalized
+
+warnings
+```
+
+---
+
+# 87. 多 Parser 情况
+
+例如图片同时有：
+
+```text
+EXIF
+
+A1111 parameters
+```
+
+系统可以：
+
+```text
+A1111Parser
++
+ExifParser
+```
+
+而不是只选一个。
+
+最终 Metadata Aggregator 合并。
+
+---
+
+# 88. Parser Warning
+
+例如：
+
+```text
+Unknown sampler:
+
+DPM++ Foo Bar
+```
+
+不要直接丢掉。
+
+输出：
+
+```text
+warnings[]
+```
+
+管理员可以查看。
+
+---
+
+# 89. API 设计初稿
+
+资产：
+
+```text
+GET    /api/assets
+
+GET    /api/assets/{id}
+
+POST   /api/assets/import
+
+PATCH  /api/assets/{id}
+
+DELETE /api/assets/{id}
+```
+
+---
+
+# 90. Search
+
+```text
+POST /api/search
+```
+
+Body：
+
+```json
+{
+  "query": "model:pony AND rating:>=4",
+  "page": 1,
+  "page_size": 100,
+  "sort": "created_desc"
+}
+```
+
+---
+
+# 91. Search Parse API
+
+```text
+POST /api/search/parse
+```
+
+输入：
+
+```text
+model:pony AND cfg:>=5
+```
+
+返回：
+
+```text
+AST
+
+Warnings
+
+Errors
+```
+
+这样前端可以实时语法检查。
+
+---
+
+# 92. Search Suggest API
+
+```text
+GET /api/search/suggest
+```
+
+例如：
+
+```text
+?q=model:illu
+```
+
+返回：
+
+```text
+illustrious-xl
+
+illustrious-vpred
+```
+
+---
+
+# 93. Tag API
+
+```text
+GET  /api/tags
+
+POST /api/tags
+
+POST /api/assets/bulk/tags
+```
+
+---
+
+# 94. Collection API
+
+```text
+GET    /api/collections
+
+POST   /api/collections
+
+PATCH  /api/collections/{id}
+
+DELETE /api/collections/{id}
+```
+
+---
+
+# 95. Library API
+
+```text
+GET  /api/libraries
+
+POST /api/libraries
+
+POST /api/libraries/{id}/scan
+```
+
+---
+
+# 96. Job API
+
+```text
+GET /api/jobs
+
+POST /api/jobs/{id}/retry
+
+POST /api/jobs/{id}/cancel
+```
+
+---
+
+# 97. MVP 页面范围
+
+第一版只做：
+
+```text
+Library
+
+Asset Viewer
+
+Collections
+
+Tags
+
+Import
+
+Jobs
+
+Settings
+```
+
+不要一开始做：
+
+```text
+Model Analytics
+
+LoRA Analytics
+
+Workflow Graph
+
+AI Search
+```
+
+但数据库要预留。
+
+---
+
+# 98. MVP 开发阶段
+
+## Phase 0
+
+基础项目。
+
+```text
+FastAPI
+
+React
+
+SQLite
+
+Docker
+
+Local Storage
+```
+
+---
+
+## Phase 1
+
+媒体库。
+
+```text
+Library
+
+Import
+
+Folder Scan
+
+Asset
+
+Thumbnail
+
+Gallery
+```
+
+---
+
+## Phase 2
+
+Metadata。
+
+```text
+Generic EXIF
+
+A1111
+
+NovelAI
+
+ComfyUI
+
+Raw Metadata
+
+Normalized Metadata
+```
+
+---
+
+## Phase 3
+
+Search。
+
+```text
+FTS
+
+Filter
+
+DSL
+
+AST
+
+AND OR NOT
+
+Autocomplete
+```
+
+---
+
+## Phase 4
+
+组织。
+
+```text
+Tag
+
+Rating
+
+Favorite
+
+Collection
+
+Smart Collection
+```
+
+---
+
+## Phase 5
+
+自动化。
+
+```text
+Watch Folder
+
+Rules
+
+Batch
+
+Background Job
+```
+
+---
+
+# 99. 第一版明确不做
+
+为了防止 Scope Explosion，MVP 建议暂时不做：
+
+```text
+Multi-user
+
+Face Recognition
+
+Cloud Sync
+
+Mobile App
+
+Social Sharing
+
+Full Image Editor
+
+Model Download
+
+AI Generation
+
+Training
+
+CLIP
+
+Visual AI Tagging
+
+Elasticsearch
+
+Kubernetes
+```
+
+系统首先做好：
+
+```text
+Import
+→
+Parse
+→
+Organize
+→
+Search
+→
+Reuse
+```
+
+---
+
+# 100. 产品的核心操作链
+
+最终最重要的 UX：
+
+```text
+生成文件
+    ↓
+Watch Folder 自动检测
+    ↓
+Hash + Metadata Parse
+    ↓
+自动分类
+    ↓
+Gallery 出现
+    ↓
+未来某一天搜索
+    ↓
+找到资产
+    ↓
+一键复制 Prompt / Seed / Metadata
+    ↓
+继续生成
+```
+
+如果这条链做得足够快，产品就成立。
+
+---
+
+# 101. 下一步应进入工程设计
+
+当前已经基本确定：
+
+```text
+产品边界
+
+领域模型
+
+Metadata 模型
+
+数据库核心表
+
+搜索模型
+
+页面 IA
+
+MVP
+```
+
+下一阶段应该正式进入：
+
+```text
+后端目录结构
+
+具体数据库 DDL
+
+Search DSL Grammar
+
+Parser Plugin Interface
+
+Job Queue 设计
+
+文件扫描算法
+
+Hash / Duplicate Strategy
+
+REST API Schema
+
+Docker Compose
+
+前端路由
+
+组件树
+
+权限模型
+
+部署方式
+```
+
+这会从：
+
+“产品架构”
+
+进入：
+
+“工程架构”。
+
+基于这一版，我建议有两个设计现在就锁死，不然后面返工成本很高。
+
+第一，**Raw Metadata 永久保存、Normalized Metadata 可重建**。这样 NovelAI、ComfyUI 或其他生成器以后改格式时，升级解析器就可以重新索引，不需要依赖原始文件再次解析。
+
+第二，**所有搜索入口统一成 AST**。简单搜索、筛选器、Smart Collection、DSL 都不要各写一套查询逻辑。它们最后都生成同一种 AST，再编译到 SQLite 或 PostgreSQL。这样以后增加 `CLIP 相似度`、`LoRA Weight`、`Workflow Node` 等查询条件，不需要重构整个搜索体系。
+
+下一阶段我建议直接继续做**工程架构 V0.3**，我可以把 `具体数据库 DDL + Search DSL EBNF 语法 + Parser Python 接口 + FastAPI 目录结构 + Docker Compose 拓扑 + 前端路由/组件树` 一次性定下来。
+
