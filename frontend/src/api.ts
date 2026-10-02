@@ -7,8 +7,9 @@ export type Node = { type: 'condition'; field: string; op: string; value: string
 export type AST = { version: 1; root: Node }
 export type Library = { id: string; name: string; mode: 'managed' | 'indexed'; root_path: string | null; watch_enabled: boolean; count: number; last_scan_at: string | null }
 export type Collection = { id: string; name: string; kind: 'static' | 'smart'; query: string; ast: AST | null; revision: number }
-export type Job = { id: string; kind: string; status: string; progress: { completed?: number; total?: number; failed?: number; errors?: { file?: string; error: string }[] }; result: { download?: string; failed?: number; errors?: { file?: string; error: string }[] }; error: string | null; created_at: string; requested_by: string | null }
-export type Detail = Asset & { generation: Record<string, unknown>; notes: string; raw: { id: string; source: string; parser: string; parser_version: string; data: unknown }[]; conflicts: unknown[]; tokens: { token: string; weight: number; polarity: string; category: string }[]; original: string; sha256: string; files: { path: string; present: boolean }[] }
+export type Job = { id: string; kind: string; status: string; progress: { phase?: string; completed?: number; total?: number; failed?: number; errors?: { file?: string; error: string }[] }; result: { download?: string; failed?: number; errors?: { file?: string; error: string }[] }; error: string | null; created_at: string; requested_by: string | null }
+export type Detail = Asset & { generation: Record<string, unknown>; notes: string; raw: { id: string; source: string; parser: string; parser_version: string; data: unknown }[]; conflicts: unknown[]; tag_sources: { name: string; source: string }[]; tokens: { token: string; weight: number; polarity: string; category: string; scope: string }[]; original: string; sha256: string; files: { path: string; present: boolean }[] }
+export type Character = { index: number; name: string; prompt: string; negative: string; centers: unknown; enabled: boolean }
 let csrf = ''
 export const setCSRF = (token: string) => { csrf = token }
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {

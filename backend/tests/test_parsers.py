@@ -123,3 +123,46 @@ def test_novelai_webp_exif(tmp_path):
 
 def test_novelai_reduced_weight():
     assert tokenize_prompt("[white hair]", "novelai")[0]["weight"] == pytest.approx(1 / 1.05)
+
+
+@pytest.mark.parametrize('stealth', [False, True])
+def test_novelai_v4_characters_and_negative_positions(tmp_path, stealth):
+    comment = {'seed': 18446744073709551615, 'sampler': 'k_euler',
+        'v4_prompt': {'caption': {'base_caption': 'two people, garden', 'char_captions': [
+            {'char_caption': 'white hair, 1.5::blue eyes::', 'centers': [{'x': 0.2, 'y': 0.5}]},
+            {'char_caption': 'black hair, smile', 'centers': [{'x': 0.8, 'y': 0.5}]}]},
+            'use_coords': True, 'use_order': True},
+        'v4_negative_prompt': {'caption': {'base_caption': 'low quality', 'char_captions': [
+            {'char_caption': 'red eyes'}, {'char_caption': 'hat'}]}}, 'future': {'untouched': [1, 2]}}
+    data = {'Software': 'NovelAI', 'Source': 'nai-diffusion-4-full', 'Comment': json.dumps(comment)}
+    if stealth:
+        payload = gzip.compress(json.dumps(data).encode())
+        encoded = b'stealth_pngcomp' + (len(payload) * 8).to_bytes(4, 'big') + payload
+        image = Image.new('RGBA', (128, 128), (100, 120, 140, 254))
+        for index, bit in enumerate(bit for byte in encoded for bit in f'{byte:08b}'):
+            x, y = divmod(index, image.height)
+            image.putpixel((x, y), (100, 120, 140, 254 | int(bit)))
+        path = tmp_path / 'characters.png'
+        image.save(path)
+    else:
+        path = png(tmp_path, data)
+    generation = normalize(extract(path)).normalized
+    assert generation['prompt'] == 'two people, garden'
+    assert generation['seed'] == '18446744073709551615'
+    assert generation['characters'][0]['prompt'] == 'white hair, 1.5::blue eyes::'
+    assert generation['characters'][1]['negative'] == 'hat'
+    assert generation['characters'][1]['centers'] == [{'x': 0.8, 'y': 0.5}]
+    assert generation['character_settings']['use_coords'] is True
+    assert generation['extra']['novelai']['future'] == {'untouched': [1, 2]}
+
+
+def test_novelai_legacy_and_mismatched_characters(tmp_path):
+    from genmedia.parsers import NovelAIParser
+    legacy = {'characterPrompts': [{'name': 'Alice', 'prompt': 'white hair', 'uc': 'hat',
+                                   'center': {'x': 0.5, 'y': 0.5}, 'enabled': False}]}
+    result = NovelAIParser().normalize(legacy)
+    assert result.normalized['characters'][0]['name'] == 'Alice'
+    assert result.normalized['characters'][0]['enabled'] is False
+    assert result.normalized['characters'][0]['centers'] == [{'x': 0.5, 'y': 0.5}]
+    legacy['v4_negative_prompt'] = {'caption': {'char_captions': [{'char_caption': 'bad'}]}}
+    assert NovelAIParser().normalize(legacy).warnings

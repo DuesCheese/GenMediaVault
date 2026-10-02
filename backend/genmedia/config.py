@@ -19,9 +19,10 @@ class Settings(BaseSettings):
     scan_interval_seconds: int = 300
     stability_seconds: float = 2.0
     lease_seconds: int = 90
+    pg_dump_binary: str = "pg_dump"
 
     def prepare(self):
-        for child in ("originals", "staging", "thumbnails", "exports"):
+        for child in ("originals", "staging", "thumbnails", "exports", "attachments", "backups"):
             (self.data_dir / child).mkdir(parents=True, exist_ok=True)
 
 

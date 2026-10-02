@@ -31,6 +31,9 @@ def environment(database="genmedia_test"):
     os.environ["GMV_ADMIN_PASSWORD"] = config["admin_password"]
     os.environ["PYTHONUTF8"] = "1"
     os.environ["GMV_TEST_DATABASE_URL"] = os.environ["GMV_DATABASE_URL"]
+    dump = Path(config.get("runtime", DATA)) / "clients/pg_dump.exe"
+    if dump.is_file():
+        os.environ["GMV_PG_DUMP_BINARY"] = str(dump)
 
 
 def start():

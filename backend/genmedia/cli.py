@@ -9,7 +9,8 @@ from .security import bootstrap
 
 def main():
     parser = argparse.ArgumentParser(prog="genmedia")
-    parser.add_argument("command", choices=["bootstrap", "worker", "openapi"])
+    parser.add_argument("command", choices=["bootstrap", "worker", "openapi", "restore-backup"])
+    parser.add_argument("archive", nargs="?", type=Path)
     args = parser.parse_args()
     settings().prepare()
     if args.command == "bootstrap":
@@ -19,6 +20,11 @@ def main():
     elif args.command == "worker":
         from .worker import main as worker
         worker()
+    elif args.command == "restore-backup":
+        if not args.archive:
+            parser.error("restore-backup 需要提供备份 ZIP 路径")
+        from .snapshots import restore_snapshot
+        restore_snapshot(args.archive)
     else:
         from .main import app
         target = Path("docs/openapi.json")

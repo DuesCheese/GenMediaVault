@@ -45,7 +45,7 @@ def user_out(user):
 @router.get("/health")
 def health(db: Session = Depends(get_db)):
     db.execute(select(1))
-    return {"status": "ok", "version": "0.1.0"}
+    return {"status": "ok", "version": "0.2.0"}
 
 
 @router.post("/auth/login", response_model=s.SessionOut)
@@ -333,7 +333,8 @@ def detail(asset_id: UUID, user: User = Depends(current_user), db: Session = Dep
                             "created_at": r.created_at, "data": r.data, "warnings": r.warnings}
                            for r in db.scalars(select(RawMetadata).where(RawMetadata.asset_id == asset.id)
                                                 .order_by(RawMetadata.created_at.desc()).limit(20))],
-                   "tokens": [{"token": t.token, "weight": t.weight, "polarity": t.polarity,
+                   "tag_sources": [{"name": name, "source": source} for name, source in db.execute(select(Tag.name, AssetTag.source).join(AssetTag).where(AssetTag.asset_id == asset.id))],
+                   "tokens": [{"token": t.token, "weight": t.weight, "polarity": t.polarity, "scope": t.scope,
                                "category": t.category} for t in db.scalars(select(PromptToken)
                                .where(PromptToken.asset_id == asset.id).order_by(PromptToken.polarity, PromptToken.position))],
                    "files": [{"path": f.path, "present": f.present} for f in db.scalars(select(PhysicalFile)
@@ -443,7 +444,7 @@ def tags(user: User = Depends(current_user), db: Session = Depends(get_db)):
     return [{"id": id, "name": name, "namespace": namespace, "count": count}
             for id, name, namespace, count in db.execute(select(Tag.id, Tag.name, Tag.namespace,
              func.count(func.distinct(AssetTag.asset_id))).outerjoin(AssetTag)
-             .group_by(Tag.id).order_by(Tag.name).limit(2000))]
+             .where(Tag.suppressed.is_(False)).group_by(Tag.id).order_by(Tag.name).limit(2000))]
 
 
 def collection_out(item):
@@ -551,6 +552,8 @@ def apply_rules(user: User = Depends(admin), db: Session = Depends(get_db)):
 @router.get("/jobs")
 def jobs(user: User = Depends(current_user), db: Session = Depends(get_db)):
     query = select(Job).where((Job.kind != "export") | (Job.requested_by == user.id)).order_by(Job.created_at.desc()).limit(100)
+    if user.role != "admin":
+        query = query.where(Job.kind != "backup")
     return [{"id": j.id, "kind": j.kind, "status": j.status, "progress": j.progress,
              "result": j.result, "error": j.error, "created_at": j.created_at,
              "requested_by": j.requested_by} for j in db.scalars(query)]
@@ -563,7 +566,7 @@ def control_job(job_id: UUID, action: str, user: User = Depends(current_user), d
         raise HTTPException(404, "任务不存在")
     if job.requested_by != user.id and user.role != "admin":
         raise HTTPException(403, "只能管理自己的任务")
-    if job.kind in ("scan", "reparse", "classify") and user.role != "admin":
+    if job.kind in ("scan", "reparse", "classify", "backup") and user.role != "admin":
         raise HTTPException(403, "此任务需要管理员权限")
     if action == "retry" and job.status in ("failed", "cancelled"):
         job.status, job.error, job.attempts, job.available_at = "pending", None, 0, now()
@@ -579,18 +582,22 @@ def control_job(job_id: UUID, action: str, user: User = Depends(current_user), d
 @router.get("/jobs/{job_id}/download")
 def download_export(job_id: UUID, user: User = Depends(current_user), db: Session = Depends(get_db)):
     job = find(db, Job, job_id)
-    if job.kind != "export" or job.requested_by != user.id:
+    if job.kind == "backup":
+        if user.role != "admin":
+            raise HTTPException(403, "只有管理员可以下载系统备份")
+    elif job.kind != "export" or job.requested_by != user.id:
         raise HTTPException(403, "只能下载自己生成的导出包")
-    path = settings().data_dir / "exports" / f"{job.id}.zip"
+    path = settings().data_dir / ("backups" if job.kind == "backup" else "exports") / f"{job.id}.zip"
     if job.status != "completed" or not path.is_file():
         raise HTTPException(404, "导出包尚未就绪")
-    return FileResponse(path, media_type="application/zip", filename=f"genmedia-{job.id}.zip",
+    filename = f"genmedia-{job.kind}-{job.created_at:%Y%m%d-%H%M%S}-{job.id[:8]}.zip"
+    return FileResponse(path, media_type="application/zip", filename=filename,
                         headers={"Cache-Control": "private, no-store"})
 
 
 @router.get("/system")
 def system(user: User = Depends(admin)):
-    return {"version": "0.1.0", "parser_version": PARSER_VERSION,
+    return {"version": "0.2.0", "parser_version": PARSER_VERSION,
             "import_roots": [str(p) for p in settings().import_roots], "max_upload_mb": settings().upload_limit_mb,
             "scan_interval_seconds": settings().scan_interval_seconds, "database": "PostgreSQL",
             "parsers": ["Generic EXIF", "A1111", "NovelAI + stealth", "ComfyUI", "Sidecar JSON/TXT"]}

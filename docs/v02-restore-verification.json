@@ -1,0 +1,11 @@
+{
+  "checked_at": "2026-10-02T07:33:09.767794+00:00",
+  "source_port": 18083,
+  "restored_port": 18084,
+  "original_sha256": "1bc3c9c975a0fa21464f9c66e7f5ffebeb7ee092890ac4079cbac4dc6503e6ec",
+  "characters": 2,
+  "groups": 2,
+  "references": 1,
+  "generation_groups_files_identical": true,
+  "logout_protection": true
+}

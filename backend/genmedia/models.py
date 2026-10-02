@@ -134,12 +134,35 @@ class PromptToken(Identity, Base):
     weight: Mapped[float] = mapped_column(Float, default=1)
     position: Mapped[int] = mapped_column(Integer)
     category: Mapped[str] = mapped_column(String(40), default="other")
+    scope: Mapped[str] = mapped_column(String(80), default="base")
 
 
 class Tag(Identity, Base):
     __tablename__ = "tags"
     name: Mapped[str] = mapped_column(Text, unique=True)
     namespace: Mapped[str] = mapped_column(Text, index=True)
+    suppressed: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class PromptLayout(Base):
+    __tablename__ = "prompt_layouts"
+    asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), primary_key=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    groups: Mapped[list] = mapped_column(JSONB, default=list)
+
+
+class Attachment(Identity, Base):
+    __tablename__ = "attachments"
+    asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), index=True)
+    filename: Mapped[str] = mapped_column(Text)
+    storage_key: Mapped[str] = mapped_column(Text)
+    mime_type: Mapped[str] = mapped_column(String(50))
+    sha256: Mapped[str] = mapped_column(String(64))
+    size: Mapped[int] = mapped_column(BigInteger)
+    caption: Mapped[str] = mapped_column(Text, default="")
+    character_index: Mapped[int | None] = mapped_column(Integer)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AssetTag(Base):

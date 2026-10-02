@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import IntegrityError
 
 from .api import router
+from .workspace import router as workspace_router
 from .config import settings
 from .search import SearchError
 
@@ -17,8 +18,9 @@ async def lifespan(app):
     yield
 
 
-app = FastAPI(title="GenMedia Vault", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="GenMedia Vault", version="0.2.0", lifespan=lifespan)
 app.include_router(router)
+app.include_router(workspace_router)
 
 
 @app.exception_handler(SearchError)

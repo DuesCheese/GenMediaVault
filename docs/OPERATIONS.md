@@ -29,11 +29,45 @@ docker compose logs --tail=100 app worker
 | `/data/thumbnails` | 派生缩略图 |
 | `/data/staging` | 未完成、失败或取消上传的暂存；成功任务自动清理 |
 | `/data/exports` | 当前请求人生成的导出包 |
+| `/data/attachments` | 动作参考图附件，包括已移除关联的历史文件 |
+| `/data/backups` | 管理员创建的完整备份 ZIP，仅管理员可下载 |
 | `/imports` | 宿主机目录，只读挂载，不属于应用媒体卷 |
 
 首版不自动清空回收站，也不自动清除失败任务暂存和导出包。长期运行时，应按实际磁盘占用安排维护；不要删除仍需重试任务的暂存。
 
-## 创建一致备份
+## v0.2 页面完整备份与恢复
+
+管理员在“设置 → 系统备份”创建并下载 ZIP，默认包含数据库、托管文件、参考附件和可读取的索引原图及 Sidecar。备份协调所有应用写入和 worker 文件处理，数据库使用同一个 MVCC 快照生成清单与 `pg_dump`。浏览不停止，编辑暂时只读。索引库外部生成器不受应用控制，因此额外检查文件读取前后状态及原图哈希；不稳定源文件会导致备份失败。
+
+容器已经内置 PostgreSQL 17 的 `pg_dump` / `pg_restore`。本地 Python 开发可用 `GMV_PG_DUMP_BINARY` 指定同版本客户端路径，`pg_restore` 放在同目录。数据库服务器若升级到更高主版本，也需更新 Dockerfile 客户端版本。
+
+恢复到**新的 Compose 项目**，避免覆盖当前资料。把下载的 ZIP 重命名为项目目录下 `backups/snapshot.zip`，先构建新项目镜像，仅启动数据库，再离线恢复：
+
+```text
+docker compose -p genmedia-recovered build
+docker compose -p genmedia-recovered up -d postgres
+```
+
+使用**绝对路径**挂载备份目录。Windows PowerShell：
+
+```powershell
+$restoreMount = (Resolve-Path -LiteralPath 'backups').Path + ':/restore:ro'
+docker compose -p genmedia-recovered run --rm --no-deps -v $restoreMount app genmedia restore-backup /restore/snapshot.zip
+```
+
+Linux Shell：
+
+```sh
+docker compose -p genmedia-recovered run --rm --no-deps -v "$PWD/backups:/restore:ro" app genmedia restore-backup /restore/snapshot.zip
+```
+
+确认恢复成功后，停止旧项目，或为新项目设置不同的 `GMV_PORT`，然后执行 `docker compose -p genmedia-recovered up -d`。不需要先启动 app，避免自动迁移提前创建表。恢复命令拒绝非空数据库和非空媒体目录，并在恢复前校验清单中的文件哈希、大小与路径。
+
+账号及密码哈希保留，登录会话撤销，需重新登录。未完成任务改为取消状态；核对路径后可重试，恢复的备份任务不会自动再次执行。托管文件和上传暂存路径随新数据根目录重映射。索引原图副本恢复在 `/data/restored-indexed/<库ID>`，相关库暂时关闭监控，可浏览下载；需要恢复外部生成目录监控时，重新配置相应只读挂载与库路径。未包含或缺失的索引原件仍依赖原挂载。
+
+历史备份 ZIP 不嵌套备份，恢复后历史记录可能没有可下载的 ZIP；`.env`、部署配置另行保存。备份和原图至少需要一份完整副本的可用磁盘空间。只在新的空环境恢复；若中途失败，保留旧实例，从另一个新的空环境重试。
+
+## 命令行创建一致备份（兼容 v0.1）
 
 在项目目录运行：
 

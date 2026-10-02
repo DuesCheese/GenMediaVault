@@ -11,7 +11,8 @@ from watchdog.observers import Observer
 
 from .config import settings
 from .db import session_factory
-from .models import Asset, Job, Library, PhysicalFile, now
+from .maintenance import mutation_gate
+from .models import Asset, Generation, Job, Library, PhysicalFile, now
 from .parsers import EXTENSIONS, sidecars_for
 from .services import (Cancelled, UnstableFile, classify, enqueue, export_assets, ingest,
                        reparse_asset, within)
@@ -37,15 +38,19 @@ def claim():
         return job
 
 
+def job_check(job, progress=None):
+    with session_factory()() as state:
+        current = state.get(Job, job.id)
+        if not current or current.status != "running" or current.lease_owner != job.lease_owner:
+            raise Cancelled()
+        if progress is not None:
+            current.progress = progress
+            state.commit()
+
+
 def execute(job):
     def check(progress=None):
-        with session_factory()() as state:
-            current = state.get(Job, job.id)
-            if not current or current.status != "running" or current.lease_owner != job.lease_owner:
-                raise Cancelled()
-            if progress is not None:
-                current.progress = progress
-                state.commit()
+        job_check(job, progress)
 
     with session_factory()() as db:
         if job.kind == "scan":
@@ -117,6 +122,8 @@ def execute(job):
                 ids = []
                 while True:
                     query = select(Asset.id).where(Asset.trashed_at.is_(None)).order_by(Asset.id).limit(500)
+                    if job.payload.get("generator"):
+                        query = query.join(Generation).where(Generation.generator == job.payload["generator"])
                     if last:
                         query = query.where(Asset.id > last)
                     page = list(db.scalars(query))
@@ -164,7 +171,12 @@ def run_one():
     thread.start()
     status, result, error = "completed", {}, None
     try:
-        result = execute(job)
+        with mutation_gate(lambda: job_check(job), exclusive=job.kind == "backup") as gate:
+            if job.kind == "backup":
+                from .snapshots import create_snapshot
+                result = create_snapshot(job, gate, lambda progress=None: job_check(job, progress))
+            else:
+                result = execute(job)
         if result.get("failed", 0):
             status, error = "failed", f"{result['failed']} 个文件处理失败，成功项目已保留；可重试"
     except Cancelled:
@@ -184,17 +196,18 @@ def run_one():
     if finished_here and status == "completed" and job.kind == "import":
         # Completed uploads no longer need their request-specific temporary files.
         # Failed/cancelled jobs retain staging so Retry remains usable.
-        directories = {Path(item["path"]).parent for item in job.payload["files"]}
-        for directory in directories:
-            if directory.parent.resolve() != (settings().data_dir / "staging").resolve():
-                continue
-            try:
-                for file in directory.iterdir():
-                    if file.is_file() and not file.is_symlink():
-                        file.unlink()
-                directory.rmdir()
-            except OSError:
-                log.warning("Completed staging directory could not be cleaned: %s", directory)
+        with mutation_gate(lambda: None):
+            directories = {Path(item["path"]).parent for item in job.payload["files"]}
+            for directory in directories:
+                if directory.parent.resolve() != (settings().data_dir / "staging").resolve():
+                    continue
+                try:
+                    for file in directory.iterdir():
+                        if file.is_file() and not file.is_symlink():
+                            file.unlink()
+                    directory.rmdir()
+                except OSError:
+                    log.warning("Completed staging directory could not be cleaned: %s", directory)
     return True
 
 

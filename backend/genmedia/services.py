@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import time
 import zipfile
@@ -12,7 +13,7 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.dialects.postgresql import insert
 
 from .config import settings
-from .models import (Asset, AssetModel, AssetTag, Collection, CollectionAsset, Generation, Job,
+from .models import (Asset, AssetModel, AssetTag, Attachment, Collection, CollectionAsset, Generation, Job, PromptLayout,
                      Library, ModelRef, PhysicalFile, PromptToken, RawMetadata, Rule, Tag, UserAsset, now)
 from .parsers import (DICTIONARY, PARSER_VERSION, canonical, extract, normalize,
                       sidecars_for, tokenize_prompt)
@@ -72,7 +73,12 @@ def add_tag(db, asset_id, name, source="user"):
         raise ValueError("标签需要 1–200 个字符")
     db.execute(insert(Tag).values(name=name, namespace=name.partition(":")[0] if ":" in name else "")
                .on_conflict_do_nothing(index_elements=[Tag.name]))
-    tag_id = db.scalar(select(Tag.id).where(Tag.name == name))
+    tag = db.scalar(select(Tag).where(Tag.name == name).with_for_update())
+    if tag.suppressed and source != "user":
+        return
+    if source == "user":
+        tag.suppressed = False
+    tag_id = tag.id
     db.execute(insert(AssetTag).values(asset_id=asset_id, tag_id=tag_id, source=source)
                .on_conflict_do_nothing())
 
@@ -142,6 +148,10 @@ def apply_metadata(db, asset: Asset, bundle: dict, source: str, replace=True):
     for polarity, key in (("positive", "prompt"), ("negative", "negative")):
         for token in tokenize_prompt(normalized.get(key, ""), normalized.get("generator", "unknown"))[:5000]:
             db.add(PromptToken(asset_id=asset.id, polarity=polarity, **token))
+        for index, character in enumerate(normalized.get("characters", [])[:100]):
+            if isinstance(character, dict):
+                for token in tokenize_prompt(character.get(key, ""), normalized.get("generator", "unknown"))[:1000]:
+                    db.add(PromptToken(asset_id=asset.id, polarity=polarity, scope=f"character:{index}", **token))
     db.execute(delete(AssetModel).where(AssetModel.asset_id == asset.id))
     references = ([{"kind": "model", "name": normalized["model"]}] if normalized.get("model") else [])
     references += [{**ref, "kind": "lora"} for ref in normalized.get("loras", []) if isinstance(ref, dict)]
@@ -313,20 +323,35 @@ def export_assets(db, job, check):
             library = db.get(Library, asset.library_id)
             path = next((p for f in files if (p := checked_original(f, library)).is_file()), None)
             base = f"{asset.id}/{asset.id}"
+            if "include_metadata" in job.payload:
+                safe_name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", Path(asset.filename).stem).strip(" .")[:120] or "image"
+                base = f"{asset.id[:8]}-{safe_name}"
             if path:
                 archive.write(path, base + asset.extension)
             generation = db.get(Generation, asset.id)
             personal = db.get(UserAsset, (job.requested_by, asset.id)) if job.requested_by else None
+            layout = db.get(PromptLayout, asset.id)
+            references = []
+            if job.payload.get("include_attachments", True):
+                for item in db.scalars(select(Attachment).where(Attachment.asset_id == asset.id, Attachment.deleted_at.is_(None))):
+                    attached = settings().data_dir / "attachments" / item.storage_key
+                    if within(attached, settings().data_dir / "attachments") and attached.is_file():
+                        name = f"references/{asset.id}/{item.storage_key}"
+                        archive.write(attached, name)
+                        references.append({"path": name, "filename": item.filename, "caption": item.caption, "character_index": item.character_index})
             metadata = {"schema_version": 1, "filename": asset.filename,
                         "generation": generation.normalized if generation else {},
+                        "prompt_groups": layout.groups if layout else [], "references": references,
                         "tags": list(db.scalars(select(Tag.name).join(AssetTag).where(AssetTag.asset_id == asset.id).distinct())),
                         "personal": {"rating": personal.rating, "favorite": personal.favorite,
                                      "notes": personal.notes, "review": personal.review} if personal else {},
                         "raw": [{"source": raw.source, "data": raw.data} for raw in db.scalars(
                             select(RawMetadata).where(RawMetadata.asset_id == asset.id))]}
-            archive.writestr(base + asset.extension + ".json", json.dumps(metadata, ensure_ascii=False, indent=2))
-            archive.writestr(base + ".txt", generation.prompt if generation else "")
-            manifest.append({"id": asset.id, "original_included": path is not None})
+            if job.payload.get("include_metadata", True):
+                archive.writestr(base + asset.extension + ".json", json.dumps(metadata, ensure_ascii=False, indent=2))
+                archive.writestr(base + ".txt", generation.prompt if generation else "")
+            manifest.append({"id": asset.id, "filename": asset.filename, "original_included": path is not None,
+                             "references": references, "error": None if path else "原图缺失"})
         archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
     os.replace(temporary, target)
     return {"download": f"/api/v1/jobs/{job.id}/download", "count": len(manifest)}

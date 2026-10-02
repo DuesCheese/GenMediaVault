@@ -13,7 +13,7 @@ from typing import Protocol
 from PIL import ExifTags, Image
 
 Image.MAX_IMAGE_PIXELS = 64_000_000
-PARSER_VERSION = "1.0.0"
+PARSER_VERSION = "1.1.0"
 MAX_METADATA = 8 * 1024 * 1024
 EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 
@@ -210,26 +210,51 @@ class NovelAIParser:
     key = "novelai"
 
     def detect(self, data):
-        comment = json_object(data.get("Comment"))
+        comment = json_object(data.get("Comment")) or data
         return 0.98 if ("novelai" in str(data.get("Software", "")).lower()
                         or "nai-" in str(data.get("Source", "")).lower()
+                        or "v4_prompt" in comment or "characterPrompts" in comment
                         or ("uc" in comment and "sampler" in comment)) else 0
 
     def extract(self, data):
         return data
 
     def normalize(self, data):
-        comment = json_object(data.get("Comment"))
+        comment = json_object(data.get("Comment")) or data
         if "Comment" in comment:
             comment = json_object(comment["Comment"])
         v4 = json_object(comment.get("v4_prompt"))
         caption = json_object(v4.get("caption"))
-        prompt = comment.get("prompt") or caption.get("base_caption") or data.get("Description", "")
+        negative_caption = json_object(json_object(comment.get("v4_negative_prompt")).get("caption"))
+        prompt = caption.get("base_caption", comment.get("prompt") or data.get("Description", ""))
+        negative = negative_caption.get("base_caption", comment.get("uc", ""))
+        positives = caption.get("char_captions", [])
+        negatives = negative_caption.get("char_captions", [])
+        legacy = comment.get("characterPrompts", [])
+        positives = positives if isinstance(positives, list) else []
+        negatives = negatives if isinstance(negatives, list) else []
+        legacy = legacy if isinstance(legacy, list) else []
+        characters, warnings = [], []
+        for index in range(min(max(len(positives), len(negatives), len(legacy)), 100)):
+            def entry(values, index=index):
+                return values[index] if index < len(values) and isinstance(values[index], dict) else {}
+            positive, undesired, fallback = entry(positives), entry(negatives), entry(legacy)
+            centers = positive.get("centers", fallback.get("centers", [fallback["center"]] if "center" in fallback else []))
+            characters.append({"index": index, "name": fallback.get("name") or f"角色 {index + 1}",
+                               "prompt": text_value(positive.get("char_caption", fallback.get("prompt", ""))),
+                               "negative": text_value(undesired.get("char_caption", fallback.get("uc", ""))),
+                               "centers": centers, "enabled": fallback.get("enabled", True)})
+        if len(positives) != len(negatives) and negatives:
+            warnings.append("NovelAI 角色正负提示词数量不同，按原始顺序配对，缺失部分保留为空")
+        if max(len(positives), len(negatives), len(legacy)) > 100:
+            warnings.append("角色数量超过展示上限，完整内容仍保存在原始信息中")
         return Parsed({"generator": self.key, "model": data.get("Source"), "prompt": prompt,
-                       "negative": comment.get("uc", ""), "seed": comment.get("seed"),
+                       "negative": negative, "characters": characters,
+                       "character_settings": {"use_coords": v4.get("use_coords"), "use_order": v4.get("use_order")},
+                       "seed": comment.get("seed"),
                        "steps": comment.get("steps"), "cfg": comment.get("scale"),
                        "sampler": comment.get("sampler"), "scheduler": comment.get("noise_schedule"),
-                       "extra": {"novelai": comment}}, parser=self.key)
+                       "extra": {"novelai": comment}}, parser=self.key, warnings=warnings)
 
 
 class ComfyUIParser:
@@ -351,6 +376,7 @@ def normalize(bundle: dict) -> Parsed:
 
     if isinstance(bundle.get("stealth"), dict):
         stealth_result = NovelAIParser().normalize(bundle["stealth"])
+        result.warnings.extend(stealth_result.warnings)
         merge(stealth_result.normalized, "novelai_stealth")
         result.parser = "novelai"
         result.confidence = 1.0

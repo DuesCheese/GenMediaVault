@@ -22,6 +22,17 @@ info = PngImagePlugin.PngInfo()
 for key, value in data.items():
     info.add_text(key, value)
 image.save(target / "novelai.png", pnginfo=info)
+character_data = {"Software": "NovelAI", "Source": "nai-diffusion-4-full", "Comment": json.dumps({
+    "seed": 4321098765432109876, "steps": 28, "scale": 5, "sampler": "k_euler",
+    "v4_prompt": {"caption": {"base_caption": "two people, garden", "char_captions": [
+        {"char_caption": "white hair, blue eyes", "centers": [{"x": 0.2, "y": 0.5}]},
+        {"char_caption": "black hair, smile", "centers": [{"x": 0.8, "y": 0.5}]}]}, "use_coords": True},
+    "v4_negative_prompt": {"caption": {"base_caption": "low quality", "char_captions": [
+        {"char_caption": "red eyes"}, {"char_caption": "hat"}]}}})}
+character_info = PngImagePlugin.PngInfo()
+for key, value in character_data.items():
+    character_info.add_text(key, value)
+image.save(target / "novelai-characters.png", pnginfo=character_info)
 payload = gzip.compress(json.dumps(data).encode(), mtime=0)
 encoded = b"stealth_pngcomp" + (len(payload) * 8).to_bytes(4, "big") + payload
 stealth = image.convert("RGBA")
