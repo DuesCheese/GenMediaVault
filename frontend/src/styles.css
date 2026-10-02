@@ -27,3 +27,22 @@
 .backup-panel .checkbox-label { display: flex; }
 .tag-explorer-search { display: flex; flex-direction: column; gap: 10px; text-align: left; width: 100%; }
 .tag-explorer-card { display: flex; flex-direction: column; gap: 12px; }
+.translation-page h2 { display: flex; align-items: center; gap: 10px; }
+.translation-filters { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.translation-search { display: flex; flex-direction: row; align-items: center; gap: 8px; flex: 1; min-width: 180px; }
+.translation-search input { width: 100%; }
+.translation-filters select { max-width: 240px; }
+.translation-filters .checkbox-label { display: flex; white-space: nowrap; }
+.translation-count { margin: 20px 0 12px; }
+.translation-list { border: 1px solid #384534; border-radius: 10px; overflow: hidden; }
+.translation-row { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(170px, 1.5fr) auto; gap: 16px; padding: 16px; border-bottom: 1px solid #303b2e; align-items: start; }
+.translation-row:last-child { border-bottom: 0; }
+.translation-word { display: flex; gap: 8px; align-items: start; font-size: 12px; overflow-wrap: anywhere; }
+.translation-word strong { flex: 1; }
+.translation-word button { flex-shrink: 0; }
+.translation-meaning { font-size: 13px; overflow-wrap: anywhere; }
+.translation-meaning .tag-cloud { margin-bottom: 0; }
+.translation-pagination { margin-top: 20px; }
+.translation-toggle { margin: 16px 0; padding: 12px; border: 1px solid #384534; border-radius: 8px; }
+.translation-toggle .checkbox-label { display: flex; margin-bottom: 8px; }
+@media(max-width:760px) { .translation-row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; } .translation-meaning { grid-column: 1 / -1; grid-row: 2; } .translation-actions { grid-column: 2; grid-row: 1; } .translation-filters select { max-width: 100%; } }

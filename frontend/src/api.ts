@@ -1,4 +1,5 @@
 import type { components } from './api.generated'
+export type { components } from './api.generated'
 export type Asset = components['schemas']['AssetOut']
 export type Session = components['schemas']['SessionOut']
 export type SearchResult = components['schemas']['SearchOut']

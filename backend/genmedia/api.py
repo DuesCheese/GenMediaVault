@@ -45,7 +45,7 @@ def user_out(user):
 @router.get("/health")
 def health(db: Session = Depends(get_db)):
     db.execute(select(1))
-    return {"status": "ok", "version": "0.2.0"}
+    return {"status": "ok", "version": "0.3.0"}
 
 
 @router.post("/auth/login", response_model=s.SessionOut)
@@ -597,7 +597,7 @@ def download_export(job_id: UUID, user: User = Depends(current_user), db: Sessio
 
 @router.get("/system")
 def system(user: User = Depends(admin)):
-    return {"version": "0.2.0", "parser_version": PARSER_VERSION,
+    return {"version": "0.3.0", "parser_version": PARSER_VERSION,
             "import_roots": [str(p) for p in settings().import_roots], "max_upload_mb": settings().upload_limit_mb,
             "scan_interval_seconds": settings().scan_interval_seconds, "database": "PostgreSQL",
             "parsers": ["Generic EXIF", "A1111", "NovelAI + stealth", "ComfyUI", "Sidecar JSON/TXT"]}

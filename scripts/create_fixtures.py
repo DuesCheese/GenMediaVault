@@ -17,6 +17,9 @@ draw.polygon([(130, 840), (475, 385), (640, 575), (640, 840)], fill="#708572")
 info = PngImagePlugin.PngInfo()
 info.add_text("parameters", "white hair, blue eyes, cinematic lighting, (masterpiece:1.2)\nNegative prompt: bad hands, low quality\nSteps: 28, Sampler: DPM++ 2M Karras, CFG scale: 5, Seed: 18446744073709551615, Model: illustrative-xl")
 image.save(target / "a1111.png", pnginfo=info)
+translation_info = PngImagePlugin.PngInfo()
+translation_info.add_text('parameters', 'gmv translation demo, white hair, (blue eyes:1.2), {{masterpiece}}, unknown demo phrase\nNegative prompt: bad hands\nSteps: 20, Seed: 3141592653589')
+image.save(target / 'translations.png', pnginfo=translation_info)
 data = {"Software": "NovelAI", "Source": "nai-diffusion-4", "Comment": json.dumps({"prompt": "white hair, blue eyes", "uc": "low quality", "seed": 42, "steps": 28, "scale": 5, "sampler": "k_euler"})}
 info = PngImagePlugin.PngInfo()
 for key, value in data.items():

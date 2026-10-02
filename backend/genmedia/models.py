@@ -144,6 +144,17 @@ class Tag(Identity, Base):
     suppressed: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class TagTranslation(Identity, Base):
+    __tablename__ = "tag_translations"
+    tag: Mapped[str] = mapped_column(Text)
+    key: Mapped[str] = mapped_column(Text, unique=True)
+    translation: Mapped[str] = mapped_column(Text, default="")
+    groups: Mapped[list] = mapped_column(JSONB, default=list)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    source: Mapped[str] = mapped_column(String(40), default="manual")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class PromptLayout(Base):
     __tablename__ = "prompt_layouts"
     asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), primary_key=True)

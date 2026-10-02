@@ -100,6 +100,7 @@ def test_full_snapshot_and_restore_to_empty_database(clients, postgres, tmp_path
         pytest.skip('PostgreSQL 17 pg_dump/pg_restore required')
     admin, alice = clients['admin'], clients['alice']
     id = upload(alice)
+    assert admin.post('/api/v1/translations', json={'tag': 'restored tag', 'translation': '备份词条', 'groups': ['备份分类']}).status_code == 201
     alice.patch(f'/api/v1/assets/{id}/personal', json={'notes': '恢复后保留的私人备注', 'rating': 5})
     ref = alice.post(f'/api/v1/assets/{id}/attachments', files={'file': ('pose.png', image_bytes())}).json()
     source_root = settings().import_roots[0] / str(uuid4())
@@ -117,7 +118,7 @@ def test_full_snapshot_and_restore_to_empty_database(clients, postgres, tmp_path
     backup.write_bytes(admin.get(f'/api/v1/jobs/{job}/download').content)
     with zipfile.ZipFile(backup) as archive:
         manifest = json.loads(archive.read('manifest.json'))
-        assert manifest['migration'] == '0002'
+        assert manifest['migration'] == '0003'
         assert manifest['label'] == '完整快照'
         assert any(entry['path'].endswith('角色.png.json') for entry in manifest['files'])
         assert not any('backups/' in entry['path'] for entry in manifest['files'])
@@ -139,6 +140,7 @@ def test_full_snapshot_and_restore_to_empty_database(clients, postgres, tmp_path
             assert connection.scalar(text('SELECT count(*) FROM sessions')) == 0
             assert connection.scalar(text('SELECT notes FROM user_assets WHERE rating=5')) == '恢复后保留的私人备注'
             assert connection.scalar(text('SELECT count(*) FROM attachments')) == 1
+            assert connection.scalar(text('SELECT translation FROM tag_translations')) == '备份词条'
             files = connection.execute(text('SELECT path FROM physical_files WHERE role=\'original\''))
             assert all(Path(row[0]).is_file() for row in files)
         assert (target / 'restored-indexed' / library / '角色.png').read_bytes() == image_bytes(seed='42')

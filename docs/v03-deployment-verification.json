@@ -1,0 +1,10 @@
+{
+  "checked_at": "2026-10-02T12:50:17.680865+00:00",
+  "version": "0.3.0",
+  "migration": "0003",
+  "translations": 11073,
+  "groups": 241,
+  "chinese_and_english_search": true,
+  "weighted_translation_and_unknown_fallback": true,
+  "login_and_logout_protection": true
+}
