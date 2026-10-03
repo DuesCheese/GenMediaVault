@@ -20,7 +20,7 @@ async def lifespan(app):
     yield
 
 
-app = FastAPI(title="GenMedia Vault", version="0.4.0", lifespan=lifespan)
+app = FastAPI(title="GenMedia Vault", version="0.5.0", lifespan=lifespan)
 app.include_router(router)
 app.include_router(workspace_router)
 app.include_router(translations_router)

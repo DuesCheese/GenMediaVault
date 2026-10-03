@@ -15,3 +15,5 @@ frontend/playwright-report/
 *.egg-info/
 *.tsbuildinfo
 test-artifacts/
+dist/
+.env.launcher-tmp

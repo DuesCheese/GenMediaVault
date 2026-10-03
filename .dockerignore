@@ -11,3 +11,5 @@ data
 backups
 test-artifacts
 idea
+dist
+launcher
