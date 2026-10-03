@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Copy, Languages, Plus, Search, Trash2 } from 'lucide-react'
-import { api, copyText, type components } from '../api'
+import { api, copyText, post, type components } from '../api'
 import { Button } from './ui/button'
 import { Modal } from './ui/dialog'
 
@@ -12,7 +12,7 @@ export function TranslationsView({ admin, run }: { admin: boolean; run: Run }) {
   const [search, setSearch] = useState(''), [query, setQuery] = useState(''), [group, setGroup] = useState('')
   const [page, setPage] = useState(1), [missing, setMissing] = useState(false)
   const [editing, setEditing] = useState<Partial<Entry> | null>(null), [groupText, setGroupText] = useState('')
-  const [error, setError] = useState(''), [saving, setSaving] = useState(false)
+  const [error, setError] = useState(''), [saving, setSaving] = useState(false), [syncing, setSyncing] = useState(false), [syncResult, setSyncResult] = useState('')
   useEffect(() => { const timer = setTimeout(() => { setQuery(search); setPage(1) }, 250); return () => clearTimeout(timer) }, [search])
   const groups = useQuery({ queryKey: ['translation-groups'], queryFn: () => api<string[]>('/translations/groups') })
   const results = useQuery({ queryKey: ['translations', query, group, missing, page], placeholderData: keepPreviousData,
@@ -27,7 +27,7 @@ export function TranslationsView({ admin, run }: { admin: boolean; run: Run }) {
       setEditing(null); await run(async () => {}, '翻译已保存，图片中的对照同步更新')
     } catch (exception) { setError((exception as Error).message) } finally { setSaving(false) }
   }
-  return <div className="content-narrow translation-page"><div className="section-intro row between"><div><p className="eyebrow">LOCAL TAG DICTIONARY</p><h2><Languages size={23} />Tag 翻译</h2><p>输入中文或部分英文查找对照，按分类浏览。{admin ? '修改后所有成员共享。' : '词表由管理员维护。'}</p></div>{admin && <Button onClick={() => open()}><Plus size={15} />添加翻译</Button>}</div>
+  return <div className="content-narrow translation-page"><div className="section-intro row between"><div><p className="eyebrow">LOCAL TAG DICTIONARY</p><h2><Languages size={23} />Tag 翻译</h2><p>输入中文或部分英文查找对照，按分类浏览。{admin ? '修改后所有成员共享。' : '词表由管理员维护。'}</p></div>{admin && <div className="row wrap"><Button variant="outline" disabled={syncing} onClick={() => run(async () => { setSyncing(true); try { const result = await post<{ groups: number; added: number }>('/translations/sync-tags'); setSyncResult(`已合并 ${result.groups} 个分组，新增 ${result.added} 条 Tag 关系。可到标签探索查看。`) } finally { setSyncing(false) } }, '已同步到标签探索')}>{syncing ? '同步中…' : '同步为标签'}</Button><Button onClick={() => open()}><Plus size={15} />添加翻译</Button></div>}</div>{syncResult && <p role="status" className="muted">{syncResult}</p>}<p className="muted">同步为标签将合并全部对照及分类，不受当前筛选影响；无分类词条归入“未分组”。手工删除的 Tag 关系在再次同步时会重新加入。</p>
     <div className="translation-filters"><label className="translation-search"><Search size={16} /><input aria-label="搜索 Tag 翻译" placeholder="例如：白发、white、hair…" value={search} onChange={event => setSearch(event.target.value)} /></label><select aria-label="翻译分类筛选" value={group} onChange={event => { setGroup(event.target.value); setPage(1) }}><option value="">全部分类</option>{groups.data?.map(name => <option key={name}>{name}</option>)}</select><label className="checkbox-label"><input type="checkbox" checked={missing} onChange={event => { setMissing(event.target.checked); setPage(1) }} />只看未翻译</label></div>
     <div className="row between translation-count"><span className="muted">{results.data ? `${results.data.total.toLocaleString()} 条对照` : '正在加载…'}{results.isFetching && results.data ? ' · 查询中…' : ''}</span>{group && <Button variant="ghost" size="sm" onClick={() => { setGroup(''); setPage(1) }}>清除分类</Button>}</div>
     {results.error && <p role="alert" className="error-box">{results.error.message}</p>}

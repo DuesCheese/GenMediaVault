@@ -27,7 +27,7 @@ cd ..
 
 v0.2 备份集成测试需要 PostgreSQL 17 的 `pg_dump` 和 `pg_restore`；用 `GMV_PG_DUMP_BINARY` 指定路径。缺少客户端时该项会明确跳过，不等于备份功能已验证。当前完整记录见 [v0.2 验证记录](VALIDATION-V0.2.md)。
 
-`scripts/check_browser.py` 固定使用隔离测试站点 `127.0.0.1:18083`，从本地 `.env` 读取测试管理员初始密码，不打印密码。先以 `genmedia-v02-test` Compose 项目启动独立数据卷，再运行该脚本；不要在正式库运行会新增测试数据的浏览器用例。
+`scripts/check_browser.py` 固定使用隔离测试站点 `127.0.0.1:18083`，从本地 `.env` 读取测试管理员初始密码，不打印密码。先以独立 Compose 项目（v0.4 使用 `genmedia-v04-test`，设置 `GMV_PORT=18083`）启动独立数据卷，再运行该脚本；不要在正式库运行会新增测试数据的浏览器用例。可追加 `zglobal-groups.spec.ts` 等参数只运行指定流程。
 
 ```powershell
 .venv\Scripts\python -X utf8 -m pytest -q

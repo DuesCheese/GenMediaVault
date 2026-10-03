@@ -155,6 +155,27 @@ class TagTranslation(Identity, Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class GlobalTagGroup(Identity, Base):
+    __tablename__ = "global_tag_groups"
+    name: Mapped[str] = mapped_column(Text)
+    name_key: Mapped[str] = mapped_column(Text, unique=True)
+    color: Mapped[str] = mapped_column(String(7), default="#8fbcbb")
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class GlobalGroupTag(Base):
+    __tablename__ = "global_group_tags"
+    group_id: Mapped[str] = mapped_column(ForeignKey("global_tag_groups.id", ondelete="CASCADE"), primary_key=True)
+    key: Mapped[str] = mapped_column(Text, primary_key=True, index=True)
+    tag: Mapped[str] = mapped_column(Text)
+
+
+class GlobalGroupState(Base):
+    __tablename__ = "global_group_state"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class PromptLayout(Base):
     __tablename__ = "prompt_layouts"
     asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), primary_key=True)

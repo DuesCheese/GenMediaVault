@@ -763,6 +763,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tag-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Browse Groups */
+        get: operations["browse_groups_api_v1_tag_groups_get"];
+        put?: never;
+        /** Create Group */
+        post: operations["create_group_api_v1_tag_groups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tag-groups/{group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Edit Group */
+        put: operations["edit_group_api_v1_tag_groups__group_id__put"];
+        post?: never;
+        /** Delete Group */
+        delete: operations["delete_group_api_v1_tag_groups__group_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tag-groups/{group_id}/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Browse Members */
+        get: operations["browse_members_api_v1_tag_groups__group_id__tags_get"];
+        /** Save Member */
+        put: operations["save_member_api_v1_tag_groups__group_id__tags_put"];
+        post?: never;
+        /** Delete Member */
+        delete: operations["delete_member_api_v1_tag_groups__group_id__tags_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/translations/sync-tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sync Translations */
+        post: operations["sync_translations_api_v1_translations_sync_tags_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -891,6 +963,41 @@ export interface components {
              */
             include_attachments: boolean;
         };
+        /** GroupEdit */
+        GroupEdit: {
+            /** Name */
+            name: string;
+            /**
+             * Color
+             * @default #8fbcbb
+             */
+            color: string;
+            /** Revision */
+            revision: number;
+        };
+        /** GroupInput */
+        GroupInput: {
+            /** Name */
+            name: string;
+            /**
+             * Color
+             * @default #8fbcbb
+             */
+            color: string;
+        };
+        /** GroupOut */
+        GroupOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Color */
+            color: string;
+            /** Revision */
+            revision: number;
+            /** Count */
+            count: number;
+        };
         /** GroupToken */
         GroupToken: {
             /** Key */
@@ -909,6 +1016,13 @@ export interface components {
             revision: number;
             /** Groups */
             groups: components["schemas"]["PromptGroup"][];
+            /**
+             * Catalog Revision
+             * @default 0
+             */
+            catalog_revision: number;
+            /** Publish Group Id */
+            publish_group_id?: string | null;
         };
         /** LibraryInput */
         LibraryInput: {
@@ -962,6 +1076,36 @@ export interface components {
             /** Items */
             items: components["schemas"]["LookupItem"][];
         };
+        /** MemberInput */
+        MemberInput: {
+            /** Tag */
+            tag: string;
+            /** Revision */
+            revision: number;
+            /** Previous Key */
+            previous_key?: string | null;
+        };
+        /** MemberOut */
+        MemberOut: {
+            /** Key */
+            key: string;
+            /** Tag */
+            tag: string;
+            /** Translation */
+            translation: string;
+        };
+        /** MembersOut */
+        MembersOut: {
+            group: components["schemas"]["GroupOut"];
+            /** Items */
+            items: components["schemas"]["MemberOut"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Limit */
+            limit: number;
+        };
         /** ParseInput */
         ParseInput: {
             /**
@@ -1007,6 +1151,8 @@ export interface components {
             source: string;
             /** Tokens */
             tokens?: components["schemas"]["GroupToken"][];
+            /** Global Group Id */
+            global_group_id?: string | null;
         };
         /** RuleAction */
         RuleAction: {
@@ -2814,6 +2960,262 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    browse_groups_api_v1_tag_groups_get: {
+        parameters: {
+            query?: {
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_group_api_v1_tag_groups_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_group_api_v1_tag_groups__group_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_group_api_v1_tag_groups__group_id__delete: {
+        parameters: {
+            query: {
+                revision: number;
+            };
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    browse_members_api_v1_tag_groups__group_id__tags_get: {
+        parameters: {
+            query?: {
+                q?: string;
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembersOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_member_api_v1_tag_groups__group_id__tags_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_member_api_v1_tag_groups__group_id__tags_delete: {
+        parameters: {
+            query: {
+                key: string;
+                revision: number;
+            };
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_translations_api_v1_translations_sync_tags_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };

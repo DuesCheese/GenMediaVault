@@ -1,0 +1,9 @@
+{
+  "checked_at": "2026-10-03T00:41:31.810202+00:00",
+  "version": "0.4.0",
+  "migration": "0004",
+  "global_groups": 0,
+  "translations": 11073,
+  "existing_image_layouts_checked": 5,
+  "login_and_logout_protection": true
+}

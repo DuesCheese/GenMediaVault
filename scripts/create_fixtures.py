@@ -20,6 +20,9 @@ image.save(target / "a1111.png", pnginfo=info)
 translation_info = PngImagePlugin.PngInfo()
 translation_info.add_text('parameters', 'gmv translation demo, white hair, (blue eyes:1.2), {{masterpiece}}, unknown demo phrase\nNegative prompt: bad hands\nSteps: 20, Seed: 3141592653589')
 image.save(target / 'translations.png', pnginfo=translation_info)
+next_info = PngImagePlugin.PngInfo()
+next_info.add_text('parameters', 'gmv translation demo, unknown demo phrase, blue eyes\nNegative prompt: bad hands\nSteps: 20, Seed: 3141592653590')
+image.save(target / 'global-groups.png', pnginfo=next_info)
 data = {"Software": "NovelAI", "Source": "nai-diffusion-4", "Comment": json.dumps({"prompt": "white hair, blue eyes", "uc": "low quality", "seed": 42, "steps": 28, "scale": 5, "sampler": "k_euler"})}
 info = PngImagePlugin.PngInfo()
 for key, value in data.items():

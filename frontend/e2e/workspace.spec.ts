@@ -63,6 +63,7 @@ test('NovelAI roles → shared colored groups → reference image → ZIP → ad
   await (await backupDownload).saveAs('../test-artifacts/v02-backup.zip')
   await page.screenshot({ path: '../test-artifacts/v02-backup.png', fullPage: true })
   await page.getByRole('button', { name: '标签探索', exact: true }).click()
+  await page.locator('.legacy-tags summary').click()
   await page.getByLabel('筛选标签', { exact: true }).fill(sharedTag)
   page.once('dialog', dialog => dialog.accept())
   await page.getByRole('button', { name: `删除共享标签 ${sharedTag}`, exact: true }).click()

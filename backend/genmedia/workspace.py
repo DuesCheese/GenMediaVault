@@ -73,51 +73,74 @@ class GroupToken(Strict):
 
 class PromptGroup(Strict):
     id: UUID
-    name: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=120)
     color: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
     source: str = Field(min_length=1, max_length=80)
     tokens: list[GroupToken] = Field(default_factory=list, max_length=1000)
+    global_group_id: UUID | None = None
 
 
 class LayoutInput(Strict):
     revision: int = Field(ge=0)
-    groups: list[PromptGroup] = Field(max_length=32)
+    groups: list[PromptGroup] = Field(max_length=4096)
+    catalog_revision: int = Field(default=0, ge=0)
+    publish_group_id: UUID | None = None
 
     @model_validator(mode="after")
     def bounded(self):
         ids = [str(g.id) for g in self.groups]
-        keys = [t.key for g in self.groups for t in g.tokens]
-        if len(ids) != len(set(ids)) or len(keys) != len(set(keys)):
+        manual = [g for g in self.groups if not g.global_group_id]
+        keys = [t.key for g in manual for t in g.tokens]
+        links = [(g.global_group_id, g.source) for g in self.groups if g.global_group_id]
+        if len(manual) > 32 or len(links) != len(set(links)):
+            raise ValueError('最多 32 个人工分组，同一来源的全局组不能重复')
+        if len(ids) != len(set(ids)) or len(keys) != len(set(keys)) or any(len(g.tokens) != len({t.key for t in g.tokens}) for g in self.groups):
             raise ValueError("分组 ID 和提示词不能重复分配")
-        if sum(len(t.text) for g in self.groups for t in g.tokens) > 200000:
+        if sum(len(t.text) for g in self.groups for t in g.tokens) > 2000000:
             raise ValueError("分组内容超过长度限制")
+        if any(not g.name.strip() or '\x00' in g.name or any('\x00' in t.text for t in g.tokens) for g in self.groups):
+            raise ValueError('分组名称不能为空，内容不能含空字符')
         return self
 
 
 @router.get("/assets/{asset_id}/prompt-groups")
 def prompt_groups(asset_id: UUID, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    from .global_groups import catalog_revision, projected_groups
     asset_exists(db, asset_id)
     layout, generation = db.get(PromptLayout, str(asset_id)), db.get(Generation, str(asset_id))
-    return {"revision": layout.revision if layout else 0, "groups": layout.groups if layout else [],
-            "sources": prompt_sources(generation.normalized if generation else {})}
+    revision = catalog_revision(db)
+    sources = prompt_sources(generation.normalized if generation else {})
+    return {"revision": layout.revision if layout else 0,
+            "groups": projected_groups(db, str(asset_id), layout.groups if layout else [], sources),
+            "catalog_revision": revision, "sources": sources}
 
 
 @router.put("/assets/{asset_id}/prompt-groups")
 def save_groups(asset_id: UUID, body: LayoutInput, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    from .global_groups import catalog_revision, lock_catalog, projected_groups, sync_image_changes
     asset_exists(db, asset_id)
     # Lock the parent too, including first-save races where no layout row exists yet.
     db.execute(select(Asset.id).where(Asset.id == str(asset_id)).with_for_update())
     layout = db.get(PromptLayout, str(asset_id))
     if body.revision != (layout.revision if layout else 0):
         raise HTTPException(409, "其他成员已修改分组，请刷新后重新编辑")
-    groups = [group.model_dump(mode="json") for group in body.groups]
+    lock_catalog(db)
+    groups = [group.model_dump(mode="json", exclude_none=True) for group in body.groups]
+    generation = db.get(Generation, str(asset_id))
+    sources = prompt_sources(generation.normalized if generation else {})
+    previous = projected_groups(db, str(asset_id), layout.groups if layout else [], sources)
+    if body.publish_group_id or any(g.get('global_group_id') for g in [*groups, *previous]):
+        if body.catalog_revision != catalog_revision(db):
+            raise HTTPException(409, '全局分组已更新，请刷新后重新编辑')
+        sync_image_changes(db, previous, groups, body.publish_group_id)
+        db.add(Audit(actor_id=user.id, action='global_group.image_sync', details={'asset_id': str(asset_id)}))
     if layout:
         layout.groups, layout.revision = groups, layout.revision + 1
     else:
         layout = PromptLayout(asset_id=str(asset_id), groups=groups, revision=1)
         db.add(layout)
     db.commit()
-    return {"revision": layout.revision}
+    return prompt_groups(asset_id, user, db)
 
 
 @router.delete("/tags/{tag_id}")

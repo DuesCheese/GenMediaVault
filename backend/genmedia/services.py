@@ -308,6 +308,8 @@ def reparse_asset(db, asset: Asset):
 
 
 def export_assets(db, job, check):
+    from .global_groups import projected_groups
+    from .workspace import prompt_sources
     target = settings().data_dir / "exports" / f"{job.id}.zip"
     temporary = target.with_suffix(".tmp")
     manifest = []
@@ -341,7 +343,9 @@ def export_assets(db, job, check):
                         references.append({"path": name, "filename": item.filename, "caption": item.caption, "character_index": item.character_index})
             metadata = {"schema_version": 1, "filename": asset.filename,
                         "generation": generation.normalized if generation else {},
-                        "prompt_groups": layout.groups if layout else [], "references": references,
+                        "prompt_groups": projected_groups(db, asset.id, layout.groups if layout else [],
+                                                          prompt_sources(generation.normalized if generation else {})),
+                        "references": references,
                         "tags": list(db.scalars(select(Tag.name).join(AssetTag).where(AssetTag.asset_id == asset.id).distinct())),
                         "personal": {"rating": personal.rating, "favorite": personal.favorite,
                                      "notes": personal.notes, "review": personal.review} if personal else {},
