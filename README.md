@@ -4,14 +4,14 @@
 
 **导入 → 提取生成元信息 → 自动分类 → 复杂搜索 → 复制参数继续创作。**
 
-首版采用中文 Web 界面、FastAPI、React 和 PostgreSQL。所有登录成员共享媒体库；收藏、评分、筛选状态、私人备注按用户隔离。原始图片保持不变。
+首版采用中文 Web 界面、FastAPI、React 和 PostgreSQL。上传默认进入私人空间，可批量公开或取消公开；收藏、评分、筛选状态、私人备注按用户隔离。原始图片保持不变。
 
-当前版本 **v0.5**：提供 Windows EXE 图形启动器和完整发布 ZIP。下载后解压，双击 `GenMediaVault.exe`，点击“启动服务”；首次需安装 Docker Desktop。详见 [Windows 启动说明](docs/WINDOWS-LAUNCHER.md)。全局分组见 [v0.4](docs/V0.4.md)，翻译见 [v0.3](docs/V0.3.md)。
+当前版本 **v0.6**：新增私人空间、超级管理员、上传者管理、限时只读分享图链和 GitHub 在线更新。详见 [v0.6 使用与升级指南](docs/V0.6.md)。提供 Windows EXE 图形启动器和完整发布 ZIP。下载后解压，双击 `GenMediaVault.exe`，点击“启动服务”；首次需安装 Docker Desktop。详见 [Windows 启动说明](docs/WINDOWS-LAUNCHER.md)。全局分组见 [v0.4](docs/V0.4.md)，翻译见 [v0.3](docs/V0.3.md)。
 
 ## 已实现
 
 - PNG / JPEG / WebP 文件与文件夹上传；托管库与只读索引库。
-- SHA-256 库内去重、缩略图、虚拟滚动图库、详情灯箱与批量整理。
+- SHA-256 同库同上传者去重、缩略图、虚拟滚动图库、详情灯箱与批量整理。
 - A1111、NovelAI 普通及 alpha 隐写元信息、ComfyUI 执行图与工作流、EXIF、JSON/TXT Sidecar。
 - 原始元数据快照、字段冲突记录、版本化标准化、重新解析；Seed 用字符串返回。
 - 简单搜索、可视化条件组和 DSL 共用 AST；AND / OR / NOT、范围、日期、前缀、字段缺失。

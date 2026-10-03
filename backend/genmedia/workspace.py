@@ -17,7 +17,9 @@ from .schemas import Strict
 from .security import admin, current_user
 from .services import enqueue, within
 
-router = APIRouter(prefix="/api/v1")
+from .access import asset_guard, visible
+
+router = APIRouter(prefix="/api/v1", dependencies=[Depends(asset_guard)])
 
 
 def asset_exists(db, asset_id):
@@ -242,7 +244,7 @@ class ExportInput(Strict):
 @router.post("/exports", status_code=202)
 def export(body: ExportInput, user: User = Depends(current_user), db: Session = Depends(get_db)):
     ids = list(dict.fromkeys(str(id) for id in body.asset_ids))
-    found = list(db.scalars(select(Asset.id).where(Asset.id.in_(ids), Asset.trashed_at.is_(None))))
+    found = list(db.scalars(select(Asset.id).where(Asset.id.in_(ids), Asset.trashed_at.is_(None), visible(user))))
     if len(found) != len(ids):
         raise HTTPException(404, "部分图片不存在或已在回收站")
     job = enqueue(db, "export", {**body.model_dump(exclude={"asset_ids"}), "asset_ids": ids}, user.id)
@@ -284,7 +286,9 @@ def get_job(job_id: UUID, user: User = Depends(current_user), db: Session = Depe
     job = db.get(Job, str(job_id))
     if not job:
         raise HTTPException(404, "任务不存在")
-    if (job.kind == "backup" and user.role != "admin") or (job.kind == "export" and job.requested_by != user.id):
+    if user.role != "superadmin" and job.requested_by != user.id:
+        raise HTTPException(403, "没有此任务的访问权限")
+    if (job.kind == "backup" and user.role not in ("admin", "superadmin")) or (job.kind == "export" and job.requested_by != user.id):
         raise HTTPException(403, "没有此任务的访问权限")
     return {"id": job.id, "kind": job.kind, "status": job.status, "progress": job.progress,
             "result": job.result, "error": job.error, "created_at": job.created_at, "requested_by": job.requested_by}

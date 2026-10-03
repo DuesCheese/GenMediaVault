@@ -3,8 +3,8 @@
 ## 快速开始
 
 1. 安装 Docker Desktop，启用 WSL 2 和 **Linux 容器**。首次启动需要联网下载容器镜像和构建依赖，不需要在宿主机安装 Python、Node.js 或 GPU 驱动。
-2. 下载 Release 中的 `GenMediaVault-v0.5.0-Windows.zip`，**完整解压**到有写入权限的固定目录。
-3. 双击根目录的 `GenMediaVault.exe`，点击 **启动服务**。启动器会检查 Docker、必要时请求启动 Docker Desktop，然后构建并启动 app、worker 和 PostgreSQL。
+2. 下载 Release 中的 `GenMediaVault-v0.6.0-Windows.zip`，**完整解压**到有写入权限的固定目录。
+3. 双击根目录的 `GenMediaVault.exe`，点击 **启动服务**。启动器会检查 Docker、必要时请求启动 Docker Desktop，然后构建并启动 app、worker、PostgreSQL 和更新服务。
 4. 就绪后自动打开浏览器。点击启动器的 **初始账号** 查看用户名及初始密码；首次运行随机生成的密码仅保存在本机 `.env`。
 
 EXE 是 Docker Compose 的图形启动入口，不是脱离 Docker 的离线单文件版。Windows 10/11 使用系统 .NET Framework，EXE 不要求单独安装 .NET 6 SDK。发布的 EXE 未进行商业代码签名，可核对 Release 的 SHA-256；源码和编译脚本均包含在 ZIP 中。
@@ -20,6 +20,8 @@ EXE 是 Docker Compose 的图形启动入口，不是脱离 Docker 的离线单�
 - **项目目录**：打开解压目录；日志位于 `data/launcher.log`，已对本机密码脱敏。
 
 关闭启动器窗口不会停止已运行的服务。Docker Desktop 首次安装的协议、WSL 初始化或重启提示需要自行完成。若端口 8080 被其他程序占用，可在设置中修改。
+
+在线更新、私人空间与分享说明见 [v0.6 指南](V0.6.md)。
 
 ## 数据与升级
 

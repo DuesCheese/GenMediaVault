@@ -6,6 +6,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import IntegrityError
 
+from .sharing import router as sharing_router
+from .updates import router as updates_router
 from .api import router
 from .workspace import router as workspace_router
 from .translations import router as translations_router
@@ -20,8 +22,10 @@ async def lifespan(app):
     yield
 
 
-app = FastAPI(title="GenMedia Vault", version="0.5.0", lifespan=lifespan)
+app = FastAPI(title="GenMedia Vault", version="0.6.0", lifespan=lifespan)
 app.include_router(router)
+app.include_router(sharing_router)
+app.include_router(updates_router)
 app.include_router(workspace_router)
 app.include_router(translations_router)
 app.include_router(global_groups_router)
@@ -51,7 +55,7 @@ async def security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "same-origin"
+    response.headers["Referrer-Policy"] = "no-referrer"
     if request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "private, no-store"
     return response

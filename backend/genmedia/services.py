@@ -184,7 +184,12 @@ def thumbnail(asset_id, path):
     os.replace(temporary, target)
 
 
-def ingest(db, library: Library, path: Path, filename=None, uploaded=False, explicit_sidecars=None):
+def ingest(db, library: Library, path: Path, filename=None, uploaded=False, explicit_sidecars=None, uploader_id=None):
+    from .models import User
+    if uploader_id is None:
+        uploader_id = db.scalar(select(User.id).where(User.username == "admin"))
+    if uploader_id is None:
+        raise ValueError("请先初始化 admin 账号")
     path = path.resolve()
     if library.mode == "indexed" and not within(path, Path(library.root_path)):
         raise ValueError("文件路径越过媒体库边界")
@@ -195,6 +200,9 @@ def ingest(db, library: Library, path: Path, filename=None, uploaded=False, expl
                                                    PhysicalFile.path == str(path), PhysicalFile.role == "original"))
     if previous:
         asset = db.get(Asset, previous.asset_id)
+        if library.mode == 'indexed':
+            # Ownership changes survive rescans of the same physical source path.
+            uploader_id = asset.uploader_id
         if asset.trashed_at is not None:
             return {"status": "excluded", "asset_id": asset.id}
     sidecars = explicit_sidecars if explicit_sidecars is not None else sidecars_for(path)
@@ -214,15 +222,15 @@ def ingest(db, library: Library, path: Path, filename=None, uploaded=False, expl
     if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns) or stamp != fingerprint(sidecars):
         raise UnstableFile("读取期间文件发生变化，稍后重试")
     db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-               {"key": f"asset:{library.id}:{checksum}"})
-    asset = db.scalar(select(Asset).where(Asset.library_id == library.id, Asset.sha256 == checksum))
+               {"key": f"asset:{library.id}:{uploader_id}:{checksum}"})
+    asset = db.scalar(select(Asset).where(Asset.library_id == library.id, Asset.sha256 == checksum, Asset.uploader_id == uploader_id))
     duplicate = asset is not None
     if asset and asset.trashed_at is not None:
         return {"status": "excluded", "asset_id": asset.id}
     technical = bundle["technical"]
     if not asset:
         extension = {"PNG": ".png", "JPEG": ".jpg", "WEBP": ".webp"}[technical["format"]]
-        asset = Asset(library_id=library.id, sha256=checksum, filename=filename or path.name,
+        asset = Asset(library_id=library.id, uploader_id=uploader_id, is_public=False, sha256=checksum, filename=filename or path.name,
                       extension=extension, mime_type=f"image/{technical['format'].lower()}",
                       width=technical["width"], height=technical["height"], file_size=before.st_size,
                       source_created_at=datetime.fromtimestamp(before.st_mtime, timezone.utc))
@@ -230,7 +238,7 @@ def ingest(db, library: Library, path: Path, filename=None, uploaded=False, expl
         db.flush()
     original_source = str(path)
     if library.mode == "managed":
-        destination = settings().data_dir / "originals" / library.id / checksum[:2] / f"{checksum}{asset.extension}"
+        destination = settings().data_dir / "originals" / library.id / uploader_id / checksum[:2] / f"{checksum}{asset.extension}"
         destination.parent.mkdir(parents=True, exist_ok=True)
         if not destination.exists():
             temporary = destination.with_suffix(".tmp")
@@ -310,6 +318,12 @@ def reparse_asset(db, asset: Asset):
 def export_assets(db, job, check):
     from .global_groups import projected_groups
     from .workspace import prompt_sources
+    from .access import export_access
+    from .models import User
+    user = db.get(User, job.requested_by)
+    if not user or not user.active:
+        raise ValueError("导出账号不可用")
+    export_access(db, job, user)
     target = settings().data_dir / "exports" / f"{job.id}.zip"
     temporary = target.with_suffix(".tmp")
     manifest = []

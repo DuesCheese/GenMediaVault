@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED_ROOTS = {'backend', 'frontend', 'migrations', 'launcher', 'scripts', 'docs', '.github'}
-ALLOWED_FILES = {'.env.example', '.gitignore', '.gitattributes', '.dockerignore', 'README.md', 'Dockerfile',
+ALLOWED_FILES = {'.env.example', '.gitignore', '.gitattributes', '.dockerignore', 'README.md', 'Dockerfile', 'Dockerfile.updater',
                  'compose.yaml', 'compose.benchmark.yaml', 'compose.watch-test.yaml', 'alembic.ini', 'pyproject.toml', 'uv.lock'}
 DENIED_PARTS = {'__pycache__', '.pytest_cache', '.ruff_cache', 'node_modules', 'dist', 'data', 'backups',
                 '.git', '.venv', 'test-results', 'playwright-report', 'test-artifacts'}

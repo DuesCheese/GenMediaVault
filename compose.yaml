@@ -18,6 +18,7 @@ services:
     environment: &environment
       GMV_DATABASE_URL: postgresql+psycopg://genmedia:${POSTGRES_PASSWORD}@postgres:5432/genmedia
       GMV_DATA_DIR: /data
+      GMV_UPDATE_CONTROL_DIR: /control
       GMV_IMPORT_ROOTS: '["/imports"]'
       GMV_SECURE_COOKIE: ${GMV_SECURE_COOKIE:-false}
       GMV_ADMIN_USERNAME: ${GMV_ADMIN_USERNAME:-admin}
@@ -27,6 +28,7 @@ services:
       - "${GMV_BIND:-127.0.0.1}:${GMV_PORT:-8080}:8080"
     volumes: &volumes
       - media:/data
+      - update_control:/control
       - ${GMV_IMPORT_ROOT:-./data/imports}:/imports:ro
     depends_on:
       postgres:
@@ -46,6 +48,16 @@ services:
       app:
         condition: service_healthy
     restart: unless-stopped
+  updater:
+    build:
+      context: .
+      dockerfile: Dockerfile.updater
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/workspace
+      - update_control:/control
+    restart: unless-stopped
 volumes:
+  update_control:
   database:
   media:

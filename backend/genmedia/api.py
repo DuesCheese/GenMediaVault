@@ -23,7 +23,9 @@ from .search import FIELDS, compile_ast, parse, to_dsl, validate
 from .security import (admin, create_session, current_user, hash_password, token_hash, verify_password)
 from .services import add_collection, add_tag, allowed_import, checked_original, enqueue
 
-router = APIRouter(prefix="/api/v1")
+from .access import asset_guard, visible, export_access
+
+router = APIRouter(prefix="/api/v1", dependencies=[Depends(asset_guard)])
 attempts: dict[str, deque] = defaultdict(deque)
 
 
@@ -45,7 +47,7 @@ def user_out(user):
 @router.get("/health")
 def health(db: Session = Depends(get_db)):
     db.execute(select(1))
-    return {"status": "ok", "version": "0.5.0"}
+    return {"status": "ok", "version": "0.6.0"}
 
 
 @router.post("/auth/login", response_model=s.SessionOut)
@@ -102,6 +104,8 @@ def users(user: User = Depends(admin), db: Session = Depends(get_db)):
 
 @router.post("/users", response_model=s.UserOut, status_code=201)
 def create_user(body: s.UserInput, user: User = Depends(admin), db: Session = Depends(get_db)):
+    if body.username.lower() == "admin":
+        raise HTTPException(409, "admin 为保留的超级管理员账号")
     if db.scalar(select(User.id).where(User.username == body.username)):
         raise HTTPException(409, "用户名已存在")
     added = User(username=body.username, password_hash=hash_password(body.password), role=body.role)
@@ -114,6 +118,8 @@ def create_user(body: s.UserInput, user: User = Depends(admin), db: Session = De
 @router.patch("/users/{user_id}", response_model=s.UserOut)
 def update_user(user_id: UUID, body: s.UserUpdate, user: User = Depends(admin), db: Session = Depends(get_db)):
     target = find(db, User, user_id)
+    if target.role == "superadmin" and (user.role != "superadmin" or body.role is not None or body.active is False):
+        raise HTTPException(403, "超级管理员不能被停用或降级，只有本人可以修改密码")
     if target.id == user.id and (body.active is False or body.role == "user"):
         raise HTTPException(400, "不能停用或降级当前管理员自身")
     if body.password:
@@ -130,9 +136,9 @@ def update_user(user_id: UUID, body: s.UserUpdate, user: User = Depends(admin), 
 
 @router.get("/libraries")
 def libraries(user: User = Depends(current_user), db: Session = Depends(get_db)):
-    counts = dict(db.execute(select(Asset.library_id, func.count()).where(Asset.trashed_at.is_(None))
+    counts = dict(db.execute(select(Asset.library_id, func.count()).where(Asset.trashed_at.is_(None), visible(user))
                             .group_by(Asset.library_id)).all())
-    return [{"id": lib.id, "name": lib.name, "mode": lib.mode, "root_path": lib.root_path if user.role == "admin" else None,
+    return [{"id": lib.id, "name": lib.name, "mode": lib.mode, "root_path": lib.root_path if user.role in ("admin", "superadmin") else None,
              "watch_enabled": lib.watch_enabled, "count": counts.get(lib.id, 0), "last_scan_at": lib.last_scan_at}
             for lib in db.scalars(select(Library).order_by(Library.created_at))]
 
@@ -227,7 +233,9 @@ def asset_rows(db, assets, user_id):
     tags = defaultdict(set)
     for asset_id, name in db.execute(select(AssetTag.asset_id, Tag.name).join(Tag).where(AssetTag.asset_id.in_(ids))):
         tags[asset_id].add(name)
-    return [{"id": a.id, "library_id": a.library_id, "filename": a.filename, "width": a.width,
+    owners = dict(db.execute(select(User.id, User.username).where(User.id.in_({a.uploader_id for a in assets}))).all())
+    return [{"uploader_id": a.uploader_id, "uploader": owners.get(a.uploader_id, ""), "is_public": a.is_public,
+             "id": a.id, "library_id": a.library_id, "filename": a.filename, "width": a.width,
              "height": a.height, "file_size": a.file_size, "imported_at": a.imported_at.isoformat(),
              "generator": generations[a.id].generator if a.id in generations else "unknown",
              "model": generations[a.id].model if a.id in generations else None,
@@ -259,14 +267,29 @@ def suggest(field: str = "model", q: str = Query(default="", max_length=200),
         return [name for name in FIELDS if name.startswith(q)][:20]
     column = columns[field]
     escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return list(db.scalars(select(column).where(column.is_not(None), column.ilike(escaped + "%", escape="\\"))
+    query = select(column)
+    if field == "tag":
+        query = query.join(AssetTag).join(Asset).where(Tag.suppressed.is_(False))
+    else:
+        query = query.join(Asset)
+    return list(db.scalars(query.where(visible(user), Asset.trashed_at.is_(None), column.is_not(None),
+                                      column.ilike(escaped + "%", escape="\\"))
                            .distinct().order_by(column).limit(20)))
 
 
 @router.post("/search", response_model=s.SearchOut)
 def search(body: s.SearchInput, user: User = Depends(current_user), db: Session = Depends(get_db)):
     ast = validate(body.ast) if body.ast is not None else parse(body.query)
-    filters = [Asset.trashed_at.is_not(None) if body.trash else Asset.trashed_at.is_(None), compile_ast(ast, user.id)]
+    filters = [Asset.trashed_at.is_not(None) if body.trash else Asset.trashed_at.is_(None), compile_ast(ast, user.id), visible(user)]
+    if body.space == "private":
+        filters.append(Asset.uploader_id == user.id)
+    elif body.space == "public":
+        filters.append(Asset.is_public.is_(True))
+    elif body.space == "all_private":
+        if user.role != "superadmin":
+            raise HTTPException(403, "仅超级管理员可以查看所有私人空间")
+        if body.uploader_id:
+            filters.append(Asset.uploader_id == str(body.uploader_id))
     if body.library_id:
         filters.append(Asset.library_id == str(body.library_id))
     if body.collection_id:
@@ -285,7 +308,7 @@ def search(body: s.SearchInput, user: User = Depends(current_user), db: Session 
     descending = body.sort.endswith("desc")
     signature = hashlib.sha256(json.dumps({"ast": ast, "library": str(body.library_id),
                  "collection": str(body.collection_id), "trash": body.trash, "sort": body.sort,
-                 "user": user.id}, sort_keys=True).encode()).hexdigest()[:20]
+                 "user": user.id, "space": body.space, "uploader": str(body.uploader_id)}, sort_keys=True).encode()).hexdigest()[:20]
     page_filters = list(filters)
     if body.cursor:
         try:
@@ -393,11 +416,36 @@ def update_personal(asset_id: UUID, body: s.PersonalInput, user: User = Depends(
 def bulk(body: s.BulkInput, user: User = Depends(current_user), db: Session = Depends(get_db)):
     ids = list(dict.fromkeys(str(id) for id in body.asset_ids))
     action, value = body.action, body.value
-    if action in ("trash", "restore", "reparse") and user.role != "admin":
+    if action in ("trash", "restore", "reparse") and user.role not in ("admin", "superadmin"):
         raise HTTPException(403, "此操作需要管理员权限")
-    assets = list(db.scalars(select(Asset).where(Asset.id.in_(ids))))
+    assets = list(db.scalars(select(Asset).where(Asset.id.in_(ids), visible(user)).with_for_update()))
     if len(assets) != len(ids):
         raise HTTPException(404, "部分资产已不存在")
+    if action in ("publish", "unpublish", "uploader"):
+        from .access import require_owner
+        from .models import ShareLink
+        for asset in assets:
+            require_owner(user, asset)
+        if action == "uploader":
+            if user.role != "superadmin":
+                raise HTTPException(403, "只有超级管理员可以修改上传者")
+            try:
+                target = find(db, User, UUID(str(value)))
+            except ValueError as exc:
+                raise HTTPException(422, "上传者 ID 无效") from exc
+            if not target.active:
+                raise HTTPException(422, "目标账号已停用")
+        for asset in assets:
+            if action == "uploader":
+                asset.uploader_id = target.id
+            else:
+                asset.is_public = action == "publish"
+            if action in ("unpublish", "uploader"):
+                for link in db.scalars(select(ShareLink).where(ShareLink.asset_id == asset.id, ShareLink.revoked_at.is_(None))):
+                    link.revoked_at = now()
+        audit(db, user, f"asset.{action}", {"asset_ids": ids, "value": value})
+        db.commit()
+        return {"updated": len(ids)}
     if action in ("export", "reparse"):
         job = enqueue(db, action, {"asset_ids": ids}, user.id)
         db.commit()
@@ -443,8 +491,8 @@ def bulk(body: s.BulkInput, user: User = Depends(current_user), db: Session = De
 def tags(user: User = Depends(current_user), db: Session = Depends(get_db)):
     return [{"id": id, "name": name, "namespace": namespace, "count": count}
             for id, name, namespace, count in db.execute(select(Tag.id, Tag.name, Tag.namespace,
-             func.count(func.distinct(AssetTag.asset_id))).outerjoin(AssetTag)
-             .where(Tag.suppressed.is_(False)).group_by(Tag.id).order_by(Tag.name).limit(2000))]
+             func.count(func.distinct(AssetTag.asset_id))).join(AssetTag).join(Asset)
+             .where(Tag.suppressed.is_(False), visible(user), Asset.trashed_at.is_(None)).group_by(Tag.id).order_by(Tag.name).limit(2000))]
 
 
 def collection_out(item):
@@ -552,8 +600,8 @@ def apply_rules(user: User = Depends(admin), db: Session = Depends(get_db)):
 @router.get("/jobs")
 def jobs(user: User = Depends(current_user), db: Session = Depends(get_db)):
     query = select(Job).where((Job.kind != "export") | (Job.requested_by == user.id)).order_by(Job.created_at.desc()).limit(100)
-    if user.role != "admin":
-        query = query.where(Job.kind != "backup")
+    if user.role != "superadmin":
+        query = query.where(Job.requested_by == user.id)
     return [{"id": j.id, "kind": j.kind, "status": j.status, "progress": j.progress,
              "result": j.result, "error": j.error, "created_at": j.created_at,
              "requested_by": j.requested_by} for j in db.scalars(query)]
@@ -564,9 +612,9 @@ def control_job(job_id: UUID, action: str, user: User = Depends(current_user), d
     job = db.scalar(select(Job).where(Job.id == str(job_id)).with_for_update())
     if not job:
         raise HTTPException(404, "任务不存在")
-    if job.requested_by != user.id and user.role != "admin":
+    if job.requested_by != user.id and user.role != "superadmin":
         raise HTTPException(403, "只能管理自己的任务")
-    if job.kind in ("scan", "reparse", "classify", "backup") and user.role != "admin":
+    if job.kind in ("scan", "reparse", "classify", "backup") and user.role not in ("admin", "superadmin"):
         raise HTTPException(403, "此任务需要管理员权限")
     if action == "retry" and job.status in ("failed", "cancelled"):
         job.status, job.error, job.attempts, job.available_at = "pending", None, 0, now()
@@ -583,10 +631,12 @@ def control_job(job_id: UUID, action: str, user: User = Depends(current_user), d
 def download_export(job_id: UUID, user: User = Depends(current_user), db: Session = Depends(get_db)):
     job = find(db, Job, job_id)
     if job.kind == "backup":
-        if user.role != "admin":
+        if user.role not in ("admin", "superadmin"):
             raise HTTPException(403, "只有管理员可以下载系统备份")
     elif job.kind != "export" or job.requested_by != user.id:
         raise HTTPException(403, "只能下载自己生成的导出包")
+    if job.kind == "export":
+        export_access(db, job, user)
     path = settings().data_dir / ("backups" if job.kind == "backup" else "exports") / f"{job.id}.zip"
     if job.status != "completed" or not path.is_file():
         raise HTTPException(404, "导出包尚未就绪")
@@ -597,7 +647,7 @@ def download_export(job_id: UUID, user: User = Depends(current_user), db: Sessio
 
 @router.get("/system")
 def system(user: User = Depends(admin)):
-    return {"version": "0.5.0", "parser_version": PARSER_VERSION,
+    return {"version": "0.6.0", "parser_version": PARSER_VERSION,
             "import_roots": [str(p) for p in settings().import_roots], "max_upload_mb": settings().upload_limit_mb,
             "scan_interval_seconds": settings().scan_interval_seconds, "database": "PostgreSQL",
             "parsers": ["Generic EXIF", "A1111", "NovelAI + stealth", "ComfyUI", "Sidecar JSON/TXT"]}

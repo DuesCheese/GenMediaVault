@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "genmedia-vault"
-version = "0.5.0"
+version = "0.6.0"
 description = "Self-hosted library and metadata search for AI-generated images"
 requires-python = ">=3.10"
 dependencies = [

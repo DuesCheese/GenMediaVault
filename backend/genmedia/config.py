@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     scan_interval_seconds: int = 300
     stability_seconds: float = 2.0
     lease_seconds: int = 90
+    update_control_dir: str = ""
     pg_dump_binary: str = "pg_dump"
 
     def prepare(self):

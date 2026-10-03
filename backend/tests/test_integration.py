@@ -60,6 +60,7 @@ def test_upload_search_copy_and_source_tags(clients):
 def test_personal_state_and_protected_media(clients):
     alice, bob = clients["alice"], clients["bob"]
     id = upload(alice)
+    assert alice.post("/api/v1/assets/bulk", json={"asset_ids": [id], "action": "publish"}).status_code == 202
     assert alice.patch(f"/api/v1/assets/{id}/personal", json={"rating": 5, "favorite": True, "notes": "private"}).status_code == 200
     assert len(alice.post("/api/v1/search", json={"query": "rating:>=4"}).json()["items"]) == 1
     assert bob.post("/api/v1/search", json={"query": "rating:>=4"}).json()["items"] == []

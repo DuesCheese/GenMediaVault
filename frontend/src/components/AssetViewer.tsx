@@ -5,11 +5,12 @@ import { api, copyText, post, type Asset, type Detail, type Character } from '..
 import { sizeLabel } from '../lib/utils'
 import { Button } from './ui/button'
 import { PromptGroups } from './PromptGroups'
+import { PrivacyPanel } from './Privacy'
 import { References } from './References'
 import { Modal } from './ui/dialog'
 
-type Props = { id: string | null; assets: Asset[]; admin: boolean; close: () => void; navigate: (id: string) => void; run: (task: () => Promise<unknown>, message?: string) => Promise<void>; search: (q: string) => void }
-export function AssetViewer({ id, assets, admin, close, navigate, run, search }: Props) {
+type Props = { userId: string; superadmin: boolean; id: string | null; assets: Asset[]; admin: boolean; close: () => void; navigate: (id: string) => void; run: (task: () => Promise<unknown>, message?: string) => Promise<void>; search: (q: string) => void }
+export function AssetViewer({ userId, superadmin, id, assets, admin, close, navigate, run, search }: Props) {
   const [tab, setTab] = useState('generation')
   const [notes, setNotes] = useState('')
   const [tag, setTag] = useState('')
@@ -40,7 +41,7 @@ export function AssetViewer({ id, assets, admin, close, navigate, run, search }:
     {detail.isPending ? <div className="loading">正在读取元信息…</div> : detail.error ? <div role="alert" className="error-box">{detail.error.message}</div> : asset && <div className="viewer-layout">
       <div className="viewer-image"><img src={asset.original} alt={asset.filename} /><div className="viewer-navigation"><Button variant="outline" size="icon" aria-label="上一张" disabled={!assets[index - 1]} onClick={() => navigate(assets[index - 1].id)}><ChevronLeft size={20} /></Button><span>{index >= 0 ? `${index + 1} / ${assets.length}` : '资产预览'}</span><Button variant="outline" size="icon" aria-label="下一张" disabled={!assets[index + 1]} onClick={() => navigate(assets[index + 1].id)}><ChevronRight size={20} /></Button></div></div>
       <div className="viewer-info"><div className="row between"><span className="badge">{asset.generator}</span><span className="muted">{asset.width} × {asset.height} · {sizeLabel(asset.file_size)}</span></div>
-        <div className="viewer-actions"><Button variant={asset.favorite ? 'default' : 'outline'} size="sm" onClick={() => personal({ favorite: !asset.favorite })}><Heart size={15} fill={asset.favorite ? 'currentColor' : 'none'} />收藏</Button><div className="stars">{[1, 2, 3, 4, 5].map(n => <button key={n} aria-label={`评分 ${n}`} onClick={() => personal({ rating: asset.rating === n ? null : n })}><Star size={19} fill={(asset.rating || 0) >= n ? 'currentColor' : 'none'} /></button>)}</div><a className="icon-button" href={`${asset.original}?download=true`} aria-label="下载原图"><Download size={17} /></a></div>
+        <PrivacyPanel key={asset.id} asset={asset} userId={userId} superadmin={superadmin} run={run} /><div className="viewer-actions"><Button variant={asset.favorite ? 'default' : 'outline'} size="sm" onClick={() => personal({ favorite: !asset.favorite })}><Heart size={15} fill={asset.favorite ? 'currentColor' : 'none'} />收藏</Button><div className="stars">{[1, 2, 3, 4, 5].map(n => <button key={n} aria-label={`评分 ${n}`} onClick={() => personal({ rating: asset.rating === n ? null : n })}><Star size={19} fill={(asset.rating || 0) >= n ? 'currentColor' : 'none'} /></button>)}</div><a className="icon-button" href={`${asset.original}?download=true`} aria-label="下载原图"><Download size={17} /></a></div>
         <select aria-label="我的筛选状态" value={asset.review} onChange={e => personal({ review: e.target.value })}><option value="unreviewed">未筛选</option><option value="keep">保留</option><option value="maybe">待定</option><option value="reject">淘汰</option></select>
         {!!asset.warnings.length && <div className="warning-box">{asset.warnings.map((w, i) => <p key={i}>{w}</p>)}</div>}
         <div className="tabs">{[['generation', '生成参数'], ['tokens', '标签'], ['references', '参考图'], ['raw', '原始信息'], ['file', '文件']].map(([value, label]) => <button key={value} className={tab === value ? 'active' : ''} onClick={() => setTab(value)}>{label}</button>)}</div>

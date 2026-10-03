@@ -2,7 +2,7 @@
 
 ## 本地和服务器
 
-同一份 `compose.yaml` 运行 `app`、`worker`、`postgres`。部署前执行 `python scripts/configure.py`；不安装 Python 时，也可以手动复制 `.env.example` 并替换示例密码。
+同一份 `compose.yaml` 运行 `app`、`worker`、`postgres`、`updater`。部署前执行 `python scripts/configure.py`；不安装 Python 时，也可以手动复制 `.env.example` 并替换示例密码。
 
 ```text
 docker compose up -d --build
@@ -18,14 +18,14 @@ docker compose logs --tail=100 app worker
 
 管理员为 `.env` 中的 `GMV_ADMIN_USERNAME`，初始密码为 `GMV_ADMIN_PASSWORD`。首次启动自动建号；已有管理员时，修改环境变量不会重设密码。登录后通过“设置”更改自己的密码或创建其他账号。管理员可通过用户 API 重设成员密码；重设密码、停用账号或变更角色会撤销其会话。
 
-所有成员可以读取全部库。普通成员不能创建服务器目录索引、修改规则、回收资产或重新解析。个人收藏、评分、备注不共享；包含个人数据的导出包仅请求人可下载。
+图片默认仅上传者与超级管理员可见，公开图片对所有登录成员可见。账号 admin 为超级管理员。普通成员不能创建服务器目录索引、修改规则、回收资产或重新解析。个人收藏、评分、备注不共享；包含个人数据的导出包仅请求人可下载。
 
 ## 持久化数据
 
 | 位置 | 内容 |
 | --- | --- |
 | PostgreSQL 卷 | 用户、资产、原始元数据、标准化信息、标签、个人状态和任务 |
-| `/data/originals` | 上传后托管的原件，按库与内容哈希存放 |
+| `/data/originals` | 上传后托管的原件，按库、上传者与内容哈希存放 |
 | `/data/thumbnails` | 派生缩略图 |
 | `/data/staging` | 未完成、失败或取消上传的暂存；成功任务自动清理 |
 | `/data/exports` | 当前请求人生成的导出包 |
@@ -107,3 +107,8 @@ docker compose up -d
 - **文件缺失**：先检查宿主机挂载和容器内路径，恢复挂载后扫描；不要通过删库解决。
 - **解析告警**：在详情中检查 Raw、冲突和文件页。未知 ComfyUI 节点保留原图，不代表生成参数已完整提取。
 - **Docker 内部网络错误**：先确认 Docker Desktop / Engine 正常运行。若构建器访问镜像仓库认证服务失败，可先执行 `docker pull node:22-alpine` 和 `docker pull python:3.12-slim` 再重试构建；项目不修改全局网络配置。
+
+
+## v0.6 在线升级
+
+首次从旧版本升级、限时分享及更新器恢复流程见 [v0.6 指南](V0.6.md)。更新器通过独立控制卷接收管理员请求，单独持有 Docker socket。

@@ -1,12 +1,26 @@
 """Coordinate application file/database mutations with a consistent backup snapshot."""
 import time
+import json
 from contextlib import contextmanager
+from pathlib import Path
 
 from sqlalchemy import text
 
 from .db import engine
 
 BACKUP_LOCK = 726341908120
+
+
+def update_in_progress():
+    from .config import settings
+    root = settings().update_control_dir
+    if not root:
+        return False
+    try:
+        value = json.loads((Path(root) / 'status.json').read_text(encoding='utf-8'))
+        return value.get('phase') in ('backing_up', 'deploying', 'rolling_back')
+    except (OSError, ValueError):
+        return False
 
 
 @contextmanager

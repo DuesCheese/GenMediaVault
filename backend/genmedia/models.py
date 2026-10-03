@@ -50,11 +50,13 @@ class Library(Identity, Base):
 class Asset(Identity, Base):
     __tablename__ = "assets"
     __table_args__ = (
-        UniqueConstraint("library_id", "sha256"),
+        UniqueConstraint("library_id", "uploader_id", "sha256", name="uq_asset_owner_hash"),
         Index("ix_assets_imported", "imported_at", "id"),
         Index("ix_assets_library_imported", "library_id", "imported_at", "id"),
     )
     library_id: Mapped[str] = mapped_column(ForeignKey("libraries.id"), index=True)
+    uploader_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     sha256: Mapped[str] = mapped_column(String(64), index=True)
     filename: Mapped[str] = mapped_column(Text)
     extension: Mapped[str] = mapped_column(String(10))
@@ -261,3 +263,12 @@ class Audit(Identity, Base):
     actor_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     action: Mapped[str] = mapped_column(String(80))
     details: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class ShareLink(Identity, Base):
+    __tablename__ = "share_links"
+    asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

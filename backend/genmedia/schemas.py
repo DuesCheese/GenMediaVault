@@ -43,6 +43,8 @@ class LibraryUpdate(Strict):
 
 
 class SearchInput(Strict):
+    space: Literal["all", "private", "public", "all_private"] = "all"
+    uploader_id: UUID | None = None
     query: str = Field(default="", max_length=8192)
     ast: dict | None = None
     library_id: UUID | None = None
@@ -74,7 +76,7 @@ class PersonalInput(Strict):
 
 class BulkInput(Strict):
     asset_ids: list[UUID] = Field(min_length=1, max_length=1000)
-    action: Literal["add_tag", "remove_tag", "collection_add", "collection_remove", "favorite", "rating", "review", "trash", "restore", "reparse", "export"]
+    action: Literal["add_tag", "remove_tag", "collection_add", "collection_remove", "favorite", "rating", "review", "trash", "restore", "reparse", "export", "publish", "unpublish", "uploader"]
     value: str | int | bool | None = None
 
 
@@ -112,6 +114,9 @@ class SessionOut(BaseModel):
 
 
 class AssetOut(BaseModel):
+    uploader_id: str
+    uploader: str
+    is_public: bool
     id: str
     library_id: str
     filename: str

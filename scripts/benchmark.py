@@ -53,12 +53,12 @@ def seed_database():
     with engine().begin() as connection:
         connection.execute(text("""
             INSERT INTO assets (id, created_at, library_id, sha256, filename, extension, mime_type,
-              width, height, file_size, imported_at, source_created_at, status, warnings)
+              width, height, file_size, imported_at, source_created_at, status, warnings, uploader_id, is_public)
             SELECT md5(i::text)::uuid, now(), CAST(:library AS uuid), lpad(md5(i::text),64,'0'),
               'image-' || i || '.png', '.png', 'image/png', 1024, 1536, 2000000+i,
-              now()-i*interval '1 second', now()-i*interval '1 second', 'ready', '[]'::jsonb
+              now()-i*interval '1 second', now()-i*interval '1 second', 'ready', '[]'::jsonb, CAST(:owner AS uuid), true
             FROM generate_series(1, :count) AS i
-        """), {"library": library_id, "count": args.assets})
+        """), {"library": library_id, "count": args.assets, "owner": users[0]})
         connection.execute(text("""
             INSERT INTO generations (asset_id, generator, model, prompt, negative, seed, steps, cfg, sampler,
               scheduler, normalized, conflicts, parsed_at)

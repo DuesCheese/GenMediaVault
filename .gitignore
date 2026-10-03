@@ -17,3 +17,5 @@ frontend/playwright-report/
 test-artifacts/
 dist/
 .env.launcher-tmp
+/GenMediaVault.exe
+/GenMediaVault.update.exe

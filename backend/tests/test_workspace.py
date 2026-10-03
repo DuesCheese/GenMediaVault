@@ -26,6 +26,7 @@ def test_prompt_segments_preserve_weights_and_commas():
 def test_shared_prompt_groups_revision_and_reparse(clients):
     alice, bob, admin = (clients[name] for name in ('alice', 'bob', 'admin'))
     id = upload(alice)
+    assert alice.post('/api/v1/assets/bulk', json={'asset_ids': [id], 'action': 'publish'}).status_code == 202
     url = f'/api/v1/assets/{id}/prompt-groups'
     layout = alice.get(url).json()
     group = {'id': str(uuid4()), 'name': '外观', 'color': '#8fbcbb', 'source': 'base:positive',
@@ -44,6 +45,7 @@ def test_shared_prompt_groups_revision_and_reparse(clients):
 def test_reference_export_permissions_and_tag_deletion(clients):
     alice, bob, admin = (clients[name] for name in ('alice', 'bob', 'admin'))
     id = upload(alice)
+    assert alice.post('/api/v1/assets/bulk', json={'asset_ids': [id], 'action': 'publish'}).status_code == 202
     url = f'/api/v1/assets/{id}/attachments'
     assert alice.post(url, files={'file': ('bad.png', b'not an image')}).status_code == 422
     response = alice.post(url, data={'caption': '手势', 'character_index': 0},
@@ -119,7 +121,7 @@ def test_full_snapshot_and_restore_to_empty_database(clients, postgres, tmp_path
     backup.write_bytes(admin.get(f'/api/v1/jobs/{job}/download').content)
     with zipfile.ZipFile(backup) as archive:
         manifest = json.loads(archive.read('manifest.json'))
-        assert manifest['migration'] == '0004'
+        assert manifest['migration'] == '0005'
         assert manifest['label'] == '完整快照'
         assert any(entry['path'].endswith('角色.png.json') for entry in manifest['files'])
         assert not any('backups/' in entry['path'] for entry in manifest['files'])

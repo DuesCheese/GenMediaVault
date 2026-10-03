@@ -11,7 +11,7 @@ from watchdog.observers import Observer
 
 from .config import settings
 from .db import session_factory
-from .maintenance import mutation_gate
+from .maintenance import mutation_gate, update_in_progress
 from .models import Asset, Generation, Job, Library, PhysicalFile, now
 from .parsers import EXTENSIONS, sidecars_for
 from .services import (Cancelled, UnstableFile, classify, enqueue, export_assets, ingest,
@@ -21,6 +21,8 @@ log = logging.getLogger("genmedia.worker")
 
 
 def claim():
+    if update_in_progress():
+        return None
     with session_factory()() as db:
         job = db.scalar(select(Job).where(or_(
             (Job.status == "pending") & (Job.available_at <= now()),
@@ -102,7 +104,7 @@ def execute(job):
                     raise ValueError("上传暂存路径无效")
                 try:
                     result = ingest(db, library, path, item["name"], uploaded=True,
-                                    explicit_sidecars=sidecars_for(path))
+                                    explicit_sidecars=sidecars_for(path), uploader_id=job.requested_by)
                     db.commit()
                     counts[result["status"]] += 1
                 except (ValueError, OSError) as exc:
@@ -230,6 +232,9 @@ def main():
     refreshed = 0.0
     try:
         while True:
+            if update_in_progress():
+                time.sleep(0.5)
+                continue
             if time.monotonic() - refreshed > 10:
                 with session_factory()() as db:
                     libraries = list(db.scalars(select(Library).where(Library.mode == "indexed",

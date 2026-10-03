@@ -45,7 +45,7 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
 
 
 def admin(user: User = Depends(current_user)) -> User:
-    if user.role != "admin":
+    if user.role not in ("admin", "superadmin"):
         raise HTTPException(403, "此操作需要管理员权限")
     return user
 
@@ -59,11 +59,16 @@ def create_session(db, user, hours):
 
 
 def bootstrap(db, username, password):
-    if db.scalar(select(User.id).where(User.role == "admin")):
+    if db.scalar(select(User.id).where(User.role.in_(("admin", "superadmin")), User.active.is_(True))):
         return False
     if len(password) < 12 or password.startswith("change-this"):
         raise ValueError("首次启动必须设置至少 12 位的 GMV_ADMIN_PASSWORD，不能使用示例密码")
-    db.add(User(username=username, password_hash=hash_password(password), role="admin"))
+    user = db.scalar(select(User).where(User.username == username))
+    if user is None:
+        user = User(username=username)
+        db.add(user)
+    user.password_hash, user.active = hash_password(password), True
+    user.role = "superadmin" if username == "admin" else "admin"
     if not db.scalar(select(Library.id).limit(1)):
         db.add(Library(name="生成作品", mode="managed"))
     db.commit()
