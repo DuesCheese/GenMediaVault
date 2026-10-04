@@ -170,7 +170,7 @@ def test_update_permissions_and_persistent_request(clients, tmp_path, monkeypatc
     assert admin.post('/api/v1/system/update').status_code == 202
     assert admin.post('/api/v1/system/update').status_code == 409
     request = json.loads((tmp_path / 'request.json').read_text())
-    assert request['current'] == '0.6.0'
+    assert request['current'] == '0.6.1'
 
 
 def test_update_read_only_window_blocks_jobs_and_writes(clients, tmp_path, monkeypatch):

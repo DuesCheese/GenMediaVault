@@ -1,6 +1,7 @@
+import { CharacterCards } from './CharacterCards'
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { api, post, copyText, type Asset, type Detail } from '../api'
+import { api, post, copyText, type Asset, type Detail, type Character } from '../api'
 import { Button } from './ui/button'
 
 type Run = (task: () => Promise<unknown>, message?: string) => Promise<void>
@@ -43,6 +44,7 @@ export function SharedPage({ token }: { token: string }) {
   return <main className="shared-page"><header><p className="eyebrow">GENMEDIA VAULT · 只读分享</p><h1>{asset.filename}</h1><p className="muted">上传者 {asset.uploader} · {asset.width} × {asset.height} · {new Date(asset.expires_at).toLocaleString()} 到期</p><a className="button button-primary" href={`${asset.original}?download=true`}>下载原图片</a></header>
     <div className="shared-layout"><div><img className="shared-original" src={asset.original} alt={asset.filename} /></div><div>
       {['prompt', 'negative'].map(field => <section className="panel" key={field}><div className="row between"><h2>{field === 'prompt' ? '正向提示词' : '负向提示词'}</h2><Button size="sm" variant="outline" onClick={() => copy(asset.generation[field] || '')}>复制</Button></div><p className="prompt-text">{String(asset.generation[field] || '无')}</p></section>)}
+      {Array.isArray(asset.generation.characters) && asset.generation.characters.length > 0 && <section className="panel" aria-label="角色信息"><h2>角色信息</h2><CharacterCards characters={asset.generation.characters as Character[]} copy={copy} /></section>}
       <section className="panel"><h2>提示词分组</h2>{asset.prompt_groups.groups.map(group => <div key={group.id} className="share-group" style={{ borderColor: group.color }}><div className="row between"><strong style={{ color: group.color }}>{group.name}</strong><Button size="sm" variant="ghost" onClick={() => copy(group.tokens.map(t => t.text).join(', '))}>复制分组</Button></div><small>{group.source}</small><p>{group.tokens.map(t => t.text).join(', ')}</p></div>)}</section>
       <section className="panel"><h2>标签</h2><div className="tag-cloud">{asset.tags.map(tag => <span className="tag" key={tag}>{tag}</span>)}</div><Button variant="ghost" onClick={() => copy(asset.tags.join(', '))}>复制标签</Button></section>
       <section className="panel"><h2>完整生成信息</h2><Button variant="outline" onClick={() => copy(asset.generation)}>复制完整参数</Button><pre>{JSON.stringify(asset.generation, null, 2)}</pre></section>

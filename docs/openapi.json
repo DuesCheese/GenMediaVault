@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "GenMedia Vault",
-    "version": "0.6.0"
+    "version": "0.6.1"
   },
   "paths": {
     "/api/v1/health": {

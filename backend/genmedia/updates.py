@@ -12,7 +12,7 @@ from .releases import latest_release, version_tuple
 from .security import admin
 
 router = APIRouter(prefix='/api/v1/system/update', dependencies=[Depends(admin)])
-VERSION = '0.6.0'
+VERSION = '0.6.1'
 
 
 def control():
